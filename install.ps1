@@ -1,5 +1,9 @@
 # Cryptex Installation Script
+[CmdletBinding()]
+param()
+
 $ErrorActionPreference = "Stop"
+$ProgressPreference = 'SilentlyContinue'  # Speeds up downloads significantly
 
 Write-Host "🧙‍♂️ Summoning Cryptex..."
 
@@ -14,34 +18,38 @@ function Test-Command($cmd) {
 Test-Command "node"
 
 # Set installation directory in PowerShell modules path
-$modulesPath = Join-Path $env:USERPROFILE "Documents\WindowsPowerShell\Modules"
+$modulesPath = Join-Path ([Environment]::GetFolderPath('MyDocuments')) "WindowsPowerShell\Modules"
 $installDir = Join-Path $modulesPath "Cryptex"
 Write-Host "Installing to: $installDir"
 
 # Create temp directory for download
-$tempDir = Join-Path $env:TEMP "cryptex-install"
+$tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ([System.IO.Path]::GetRandomFileName())
 New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
 
-# Download repository as zip
-Write-Host "Downloading Cryptex..."
-$repoUrl = "https://github.com/hlsitechio/cryptexcli1/archive/refs/heads/main.zip"
-$zipPath = Join-Path $tempDir "cryptex.zip"
-Invoke-WebRequest -Uri $repoUrl -OutFile $zipPath
+try {
+    # Download repository as zip
+    Write-Host "Downloading Cryptex..."
+    $repoUrl = "https://github.com/hlsitechio/cryptexcli1/archive/refs/heads/main.zip"
+    $zipPath = Join-Path $tempDir "cryptex.zip"
+    
+    # Use TLS 1.2 for security
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    Invoke-WebRequest -Uri $repoUrl -OutFile $zipPath
 
-# Remove existing installation if present
-Remove-Item -Recurse -Force $installDir -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Force -Path $installDir | Out-Null
+    # Remove existing installation if present
+    Remove-Item -Recurse -Force $installDir -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force -Path $installDir | Out-Null
 
-# Extract files
-Write-Host "Extracting files..."
-Expand-Archive -Path $zipPath -DestinationPath $tempDir -Force
-Copy-Item -Path (Join-Path $tempDir "cryptexcli1-main\*") -Destination $installDir -Recurse -Force
+    # Extract files
+    Write-Host "Extracting files..."
+    Expand-Archive -Path $zipPath -DestinationPath $tempDir -Force
+    Copy-Item -Path (Join-Path $tempDir "cryptexcli1-main\*") -Destination $installDir -Recurse -Force
 
-# Create PowerShell module manifest
-$manifestPath = Join-Path $installDir "Cryptex.psd1"
-$cryptexScript = Join-Path $installDir "bin\cryptex.js"
+    # Create PowerShell module manifest
+    $manifestPath = Join-Path $installDir "Cryptex.psd1"
+    $cryptexScript = Join-Path $installDir "bin\cryptex.js"
 
-$manifestContent = @"
+    $manifestContent = @"
 @{
     ModuleVersion = '1.0'
     GUID = 'a12345bc-1234-5678-9012-34567890abcd'
@@ -58,11 +66,11 @@ $manifestContent = @"
 }
 "@
 
-Set-Content -Path $manifestPath -Value $manifestContent
+    Set-Content -Path $manifestPath -Value $manifestContent
 
-# Create PowerShell module script
-$modulePath = Join-Path $installDir "Cryptex.psm1"
-$moduleContent = @"
+    # Create PowerShell module script
+    $modulePath = Join-Path $installDir "Cryptex.psm1"
+    $moduleContent = @"
 function Invoke-Cryptex {
     param(
         [Parameter(ValueFromRemainingArguments=`$true)]
@@ -77,10 +85,20 @@ Set-Alias -Name cryptex -Value Invoke-Cryptex
 Export-ModuleMember -Function Invoke-Cryptex -Alias cryptex
 "@
 
-Set-Content -Path $modulePath -Value $moduleContent
+    Set-Content -Path $modulePath -Value $moduleContent
 
-# Cleanup
-Remove-Item -Path $tempDir -Recurse -Force
+    Write-Host "`n✨ Installation complete!"
+    Write-Host "To start using Cryptex, run:"
+    Write-Host "    Import-Module Cryptex"
+    Write-Host "    cryptex interact"
+    Write-Host "`nNote: The module will be automatically imported in new PowerShell sessions."
 
-Write-Host "`n✨ Installation complete! Try 'Import-Module Cryptex' and then 'cryptex interact' to begin your magical journey."
-Write-Host "Note: The module will be automatically imported in new PowerShell sessions."
+} catch {
+    Write-Host "❌ Error during installation: $_"
+    Exit 1
+} finally {
+    # Cleanup
+    if (Test-Path $tempDir) {
+        Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
