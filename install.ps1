@@ -135,9 +135,20 @@ function Format-CryptexResponse {
 
 function Set-CryptexApiKey {
     param(
-        [Parameter(Mandatory=$true)]
-        [string]$ApiKey
+        [Parameter(Mandatory=$true, ParameterSetName='ClearText')]
+        [string]$ApiKey,
+        
+        [Parameter(Mandatory=$true, ParameterSetName='Secure')]
+        [switch]$Prompt
     )
+    
+    if ($Prompt) {
+        Write-Host "Enter your Google AI API key (input will be hidden):"
+        $secureKey = Read-Host -AsSecureString
+        $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureKey)
+        $ApiKey = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+        [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
+    }
     
     Write-Host "Validating API key..."
     if (Test-CryptexApiKey -ApiKey $ApiKey) {
@@ -148,6 +159,11 @@ function Set-CryptexApiKey {
         $config | ConvertTo-Json | Set-Content $script:ConfigFile -Force
         $script:ApiKey = $ApiKey
         Write-Host "✅ API key validated and saved successfully"
+        
+        # Clear sensitive data
+        if ($Prompt) {
+            Remove-Variable -Name ApiKey, secureKey
+        }
     } else {
         Write-Host "❌ Invalid API key. Please check your key and try again."
         return
@@ -356,10 +372,32 @@ Export-ModuleMember -Function Invoke-Cryptex -Alias cryptex
     Write-Verbose "Module script created successfully"
 
     Write-Host "`n✨ Installation complete!"
-    Write-Host "To start using Cryptex, run:"
-    Write-Host "    Import-Module Cryptex"
-    Write-Host "    cryptex setkey YOUR-API-KEY"
-    Write-Host "    cryptex interact"
+    
+    # Prompt for API key
+    Write-Host "`nWould you like to set up your API key now? (y/n)" -NoNewline
+    $response = Read-Host
+    if ($response -eq 'y') {
+        Write-Host "`nEnter your Google AI API key (input will be hidden):"
+        $secureKey = Read-Host -AsSecureString
+        $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureKey)
+        $apiKey = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+        
+        # Import module and set key
+        Import-Module Cryptex -Force
+        Set-CryptexApiKey -Prompt
+
+        # Clear sensitive data from memory
+        [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
+        Remove-Variable -Name apiKey, secureKey, BSTR
+        
+        Write-Host "`nYou can now use 'cryptex interact' to start using Cryptex!"
+    } else {
+        Write-Host "`nTo start using Cryptex later, run:"
+        Write-Host "    Import-Module Cryptex"
+        Write-Host "    cryptex setkey YOUR-API-KEY"
+        Write-Host "    cryptex interact"
+    }
+    
     Write-Host "`nNote: The module will be automatically imported in new PowerShell sessions."
 
 } catch {
