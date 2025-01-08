@@ -8,19 +8,14 @@ $ProgressPreference = 'SilentlyContinue'  # Speeds up downloads significantly
 
 function Get-ModuleInstallPath {
     # Get PowerShell module paths
-    $paths = @(
-        # First try OneDrive path
-        [System.IO.Path]::Combine($env:USERPROFILE, "OneDrive", "Documents", "WindowsPowerShell", "Modules"),
-        # Then regular Documents
-        [System.IO.Path]::Combine($env:USERPROFILE, "Documents", "WindowsPowerShell", "Modules"),
-        # Finally system path
-        [System.IO.Path]::Combine($env:ProgramFiles, "WindowsPowerShell", "Modules")
-    )
+    $modulePaths = $env:PSModulePath -split ';' | Where-Object { $_ -match 'WindowsPowerShell\\Modules$' }
+    Write-Verbose "Available module paths:"
+    $modulePaths | ForEach-Object { Write-Verbose "  $_" }
 
-    foreach ($path in $paths) {
-        $parentPath = Split-Path $path -Parent
-        if (Test-Path $parentPath) {
-            Write-Verbose "Found valid module path: $path"
+    # Try each path in order
+    foreach ($path in $modulePaths) {
+        if (Test-Path (Split-Path $path -Parent)) {
+            Write-Verbose "Using module path: $path"
             if (-not (Test-Path $path)) {
                 Write-Verbose "Creating module directory: $path"
                 New-Item -ItemType Directory -Path $path -Force | Out-Null
