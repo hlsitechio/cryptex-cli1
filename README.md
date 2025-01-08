@@ -2,16 +2,76 @@
 
 A PowerShell-based CLI tool for interacting with Google's Gemini AI.
 
-## Step-by-Step Installation Guide
+## System Requirements
 
-### Easy Installation (Recommended)
+### Minimum Requirements
+- Windows 10 2004 (build 19041) or later
+- One of the following PowerShell versions:
+  - PowerShell 7.x (recommended)
+  - Windows PowerShell 5.1
 
-1. **Create Installation Directory**
+### Required Software
+1. **Windows Terminal** (Recommended)
+   - Install from [Microsoft Store](https://aka.ms/terminal) (recommended)
+   - Or download from [GitHub Releases](https://github.com/microsoft/terminal/releases)
+
+2. **PowerShell 7**
+   - Install from [Microsoft Store](https://aka.ms/powershell) (recommended)
+   - Or download from [GitHub Releases](https://github.com/PowerShell/PowerShell/releases)
+
+3. **Visual C++ Runtime**
+   - Download [Visual C++ Redistributable 2015-2022](https://aka.ms/vs/17/release/vc_redist.x64.exe)
+   - Required for various system components
+
+4. **.NET Runtime**
+   - Download [.NET 7.0 Runtime](https://dotnet.microsoft.com/download/dotnet/7.0/runtime)
+   - Required for PowerShell 7 and some Cryptex features
+
+### Optional Software
+1. **Git** (for developers)
+   - Download from [Git for Windows](https://gitforwindows.org/)
+   - Useful for getting updates and contributing
+
+2. **Visual Studio Code** (recommended for development)
+   - Download from [VS Code](https://code.visualstudio.com/)
+   - Recommended extensions:
+     - PowerShell Extension
+     - Git Extension
+
+## Installation Guide
+
+### Method 1: Windows Terminal + PowerShell 7 (Recommended)
+
+1. **Install Prerequisites**
+   ```powershell
+   # Using winget (Windows Package Manager)
+   winget install Microsoft.WindowsTerminal
+   winget install Microsoft.PowerShell
+   winget install Microsoft.VCRedist.2015+.x64
+   winget install Microsoft.DotNet.Runtime.7
+   ```
+   
+   Or install manually:
+   - Install [Windows Terminal](https://aka.ms/terminal)
+   - Install [PowerShell 7](https://aka.ms/powershell)
+   - Install [Visual C++ Runtime](https://aka.ms/vs/17/release/vc_redist.x64.exe)
+   - Install [.NET 7.0 Runtime](https://dotnet.microsoft.com/download/dotnet/7.0/runtime)
+   
+2. **Open Windows Terminal**
+   - Press Win + X and select "Windows Terminal"
+   - Click the dropdown arrow and select "PowerShell" (not "Windows PowerShell")
+   - Verify you're using PowerShell 7 by running:
+     ```powershell
+     $PSVersionTable.PSVersion
+     ```
+   - You should see version 7.x.x
+
+3. **Create Installation Directory**
    - Open File Explorer
    - Navigate to your C: drive
    - Create a new folder called `cryptex`
 
-2. **Download and Extract Files**
+4. **Download and Extract Files**
    - Click this link to download: [Download Cryptex](https://github.com/hlsitechio/cryptex-cli1/archive/refs/heads/main.zip)
    - When the download completes:
      - Open your Downloads folder
@@ -21,27 +81,71 @@ A PowerShell-based CLI tool for interacting with Google's Gemini AI.
      - Click "Extract"
    - You should now have the files in `C:\cryptex\cryptex-cli1-main`
 
-3. **Install Cryptex**
-   - Press Windows key + X and click "Windows PowerShell" or "Terminal"
-   - Copy and paste these commands:
+5. **Install Cryptex**
+   - In Windows Terminal with PowerShell 7, run:
      ```powershell
      cd C:\cryptex\cryptex-cli1-main
      .\install.ps1
      ```
-   - When asked where to install:
-     - Choose option 1 for "User Documents" (recommended)
-     - If it asks to remove existing installation, type 'y'
+   - Choose where to install:
+     - For PowerShell 7: Choose "PowerShell 7 User Documents"
+     - For PowerShell 5.1: Choose "PowerShell 5.1 User Documents"
    - When asked about the API key:
      - Choose 'y' if you have one
      - Choose 'n' if you don't have one yet
 
-4. **After Installation**
-   - Close PowerShell completely
-   - Open a new PowerShell window
-   - Test the installation:
-     ```powershell
-     cryptex interact "Hello!"
-     ```
+### Method 2: Classic PowerShell (Legacy)
+
+If you prefer using classic Windows PowerShell 5.1:
+
+1. Press Win + X and select "Windows PowerShell"
+2. Follow the same steps as above, but when installing:
+   - Choose "PowerShell 5.1 User Documents" as the installation location
+
+### Method 3: Developer Installation (via Git)
+
+For developers who want to contribute or get the latest updates:
+
+1. Install additional tools:
+   ```powershell
+   winget install Git.Git
+   winget install Microsoft.VisualStudioCode
+   ```
+
+2. Clone and install:
+   ```powershell
+   git clone https://github.com/hlsitechio/cryptex-cli1.git
+   cd cryptex-cli1
+   .\install.ps1
+   ```
+
+## Verifying Installation
+
+After installation:
+1. Close all PowerShell/Terminal windows
+2. Open a new Windows Terminal or PowerShell
+3. Run the verification command:
+   ```powershell
+   cryptex --version
+   cryptex interact "Hello!"
+   ```
+
+## Troubleshooting
+
+### Prerequisites Check
+Run this script to check if all prerequisites are installed:
+```powershell
+$checks = @{
+    "Windows Terminal" = Test-Path "$env:LOCALAPPDATA\Microsoft\WindowsApps\wt.exe"
+    "PowerShell 7" = $PSVersionTable.PSVersion.Major -ge 7
+    "Visual C++ Runtime" = Test-Path "C:\Windows\System32\vcruntime140.dll"
+    ".NET Runtime" = [System.Runtime.InteropServices.RuntimeInformation]::FrameworkDescription -like "*7.0*"
+}
+
+foreach ($check in $checks.GetEnumerator()) {
+    Write-Host "$($check.Key): $($check.Value)"
+}
+```
 
 ## Getting Your API Key
 
@@ -95,36 +199,6 @@ The uninstaller will:
 - Remove all Cryptex module files
 - Delete your configuration file (including API key)
 - Clean up any temporary files
-
-## Troubleshooting
-
-### "Cannot run script" Error
-If you see this error, run PowerShell as Administrator and enter:
-```powershell
-Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
-```
-
-### Module Not Found
-If `cryptex` command isn't recognized:
-1. Make sure you're using a new PowerShell window
-2. Try importing the module manually:
-   ```powershell
-   Import-Module Cryptex
-   ```
-3. If that doesn't work:
-   - Close all PowerShell windows
-   - Open a new PowerShell window
-   - Run the installer again: `C:\cryptex\cryptex-cli1-main\install.ps1`
-
-### Wrong Installation Location
-If you installed to the wrong location:
-1. Run the installer again: `C:\cryptex\cryptex-cli1-main\install.ps1`
-2. Choose a different installation location
-
-### API Key Issues
-If your API key isn't working:
-1. Make sure you can use it at [Google AI Studio](https://makersuite.google.com/app/apikey)
-2. Try setting it again: `cryptex setkey -Prompt`
 
 ## Need Help?
 
