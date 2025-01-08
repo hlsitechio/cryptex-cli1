@@ -1,149 +1,100 @@
 # Cryptex CLI
 
-A powerful command-line interface for interacting with Google's Gemini 2.0 Flash AI model. Cryptex CLI provides a seamless way to integrate advanced AI capabilities into your PowerShell environment.
+A PowerShell-based CLI tool for interacting with Google's Gemini AI.
 
-## Features
+## Step-by-Step Installation Guide
 
-- 🚀 Direct integration with Google's Gemini 2.0 Flash Experimental model
-- 💨 Fast and efficient responses
-- 🔒 Secure API key management
-- 🔌 Easy installation via PowerShell
-- 💻 Interactive command-line interface
-- ⚡ Zero dependencies - no Node.js or npm required
+### Method 1: Easy Installation (Recommended)
 
-## Prerequisites
+1. **Create Installation Directory**
+   - Open File Explorer
+   - Navigate to your C: drive
+   - Create a new folder called `cryptex`
+   - Inside `cryptex`, create another folder called `cryptex-cli1`
 
-- Windows PowerShell 5.1 or later
-- A Google AI API key ([Get one here](https://makersuite.google.com/app/apikey))
+2. **Download Files**
+   - Click this link to download: [Download Cryptex](https://github.com/hlsitechio/cryptex-cli1/archive/refs/heads/main.zip)
+   - When the download completes, find the ZIP file in your Downloads folder
+   - Right-click the ZIP file and select "Extract All..."
+   - Copy all files from the extracted folder into `C:\cryptex\cryptex-cli1`
 
-## Installation
+3. **Install Cryptex**
+   - Open PowerShell (press Windows key, type "powershell", and click "Windows PowerShell")
+   - Copy and paste this command:
+     ```powershell
+     cd C:\cryptex\cryptex-cli1
+     ```
+   - Then run the installer:
+     ```powershell
+     .\install.ps1
+     ```
+   - Choose where to install (recommended: option 1 for "User Documents")
+   - When asked about the API key, choose 'y' if you have one, 'n' if you don't yet
 
-### Option 1: Direct Installation (Recommended)
-
-Run the following command in PowerShell:
+### Method 2: Using Git (For Developers)
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/hlsitechio/cryptex-cli1/main/install.ps1 | iex
-```
-
-### Option 2: Manual Installation
-
-1. Clone the repository:
-```powershell
+# Clone the repository
 git clone https://github.com/hlsitechio/cryptex-cli1.git
 cd cryptex-cli1
-```
 
-2. Run the installation script:
-```powershell
+# Run the installer
 .\install.ps1
 ```
 
-## Getting Started
+## Getting Your API Key
 
-1. Set your Google AI API key:
-```powershell
-cryptex setkey YOUR-API-KEY
-```
+1. Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. Sign in with your Google account
+3. Click "Create API Key"
+4. Copy your new API key
 
-2. Start an interactive session:
+## Setting Up Your API Key
+
+1. Open PowerShell
+2. Run:
+   ```powershell
+   cryptex setkey -Prompt
+   ```
+3. Paste your API key when prompted (the input will be hidden)
+
+## Using Cryptex
+
+Start an interactive chat:
 ```powershell
 cryptex interact
 ```
 
-3. Or send a direct prompt:
+Ask a single question:
 ```powershell
-cryptex interact "What is artificial intelligence?"
+cryptex interact "What is the capital of France?"
 ```
-
-## Usage
-
-### Basic Commands
-
-- `cryptex setkey <api-key>` - Set your Google AI API key
-- `cryptex interact` - Start an interactive chat session
-- `cryptex interact "<prompt>"` - Send a single prompt
-- `cryptex config` - View current configuration
-- `cryptex config set` - Update configuration settings
-
-### Interactive Mode
-
-In interactive mode:
-- Type your message and press Enter to send
-- Type 'exit' to end the session
-
-### Configuration Options
-
-You can customize various settings using the config command:
-
-```powershell
-cryptex config set ApiEndpoint "https://your-endpoint"
-cryptex config set ApiVersion "v1beta"
-cryptex config set DefaultModel "gemini-2.0-flash-exp"
-```
-
-## Technical Details
-
-- Uses Google's Gemini 2.0 Flash Experimental model
-- Implements secure API key storage
-- PowerShell module-based architecture
-- Efficient request handling and response streaming
 
 ## Troubleshooting
 
-### Common Issues
+### "Cannot run script" Error
+If you see this error, run PowerShell as Administrator and enter:
+```powershell
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
 
-1. API Key Issues:
-   - Ensure your API key is valid
-   - Check if the key has been properly set using `cryptex config`
+### Module Not Found
+If `cryptex` command isn't recognized:
+1. Close and reopen PowerShell
+2. Run the installer again: `C:\cryptex\cryptex-cli1\install.ps1`
 
-2. Connection Problems:
-   - Verify your internet connection
-   - Check if the API endpoint is accessible
-   - Ensure you're using the correct API version
+### Wrong Installation Location
+If you installed to the wrong location:
+1. Run the installer again: `C:\cryptex\cryptex-cli1\install.ps1`
+2. Choose a different installation location
 
-3. Installation Issues:
-   - Run PowerShell as administrator if needed
-   - Check if the installation path exists and is writable
-   - Verify PowerShell execution policy
+### API Key Issues
+If your API key isn't working:
+1. Make sure you can use it at [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. Try setting it again: `cryptex setkey -Prompt`
 
-### Error Messages
+## Need Help?
 
-- "API Key not set" - Run `cryptex setkey YOUR-API-KEY`
-- "Invalid API key" - Verify your API key is correct
-- "No response generated" - Try rephrasing your prompt
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Security
-
-- API keys are stored securely in your user profile
-- All communications use HTTPS
-- No data is stored or logged during conversations
-
-## Support
-
-For support, please:
-1. Check the troubleshooting section
-2. Search existing issues
-3. Create a new issue if needed
-
-## Acknowledgments
-
-- Google AI for providing the Gemini API
-- Contributors and maintainers
-- The PowerShell community
-
----
-
-Made with ❤️ by HLSitechIO
+- Check our [Issues page](https://github.com/hlsitechio/cryptex-cli1/issues)
+- Create a new issue if you're still stuck
+- Contact support at [support@hlsitech.io](mailto:support@hlsitech.io)
