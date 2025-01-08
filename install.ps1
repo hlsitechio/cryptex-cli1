@@ -7,17 +7,6 @@ $ProgressPreference = 'SilentlyContinue'  # Speeds up downloads significantly
 
 Write-Host "🧙‍♂️ Summoning Cryptex..."
 
-# Check for required commands
-function Test-Command($cmd) {
-    if (!(Get-Command $cmd -ErrorAction SilentlyContinue)) {
-        Write-Host "❌ Error: '$cmd' not found. Please install it first."
-        Exit 1
-    }
-}
-
-Test-Command "node"
-Test-Command "npm"
-
 # Set installation directory in PowerShell modules path
 $modulesPath = Join-Path ([Environment]::GetFolderPath('MyDocuments')) "WindowsPowerShell\Modules"
 $installDir = Join-Path $modulesPath "Cryptex"
@@ -46,15 +35,8 @@ try {
     Expand-Archive -Path $zipPath -DestinationPath $tempDir -Force
     Copy-Item -Path (Join-Path $tempDir "cryptexcli1-main\*") -Destination $installDir -Recurse -Force
 
-    # Install npm dependencies
-    Write-Host "Installing dependencies..."
-    Push-Location $installDir
-    npm install --no-package-lock --no-save
-    Pop-Location
-
     # Create PowerShell module manifest
     $manifestPath = Join-Path $installDir "Cryptex.psd1"
-    $cryptexScript = Join-Path $installDir "bin\cryptex.js"
 
     $manifestContent = @"
 @{
@@ -65,7 +47,7 @@ try {
     Copyright = '(c) 2025 Cryptex. All rights reserved.'
     Description = 'Cryptex CLI Tool'
     PowerShellVersion = '5.0'
-    FunctionsToExport = @('Invoke-Cryptex')
+    FunctionsToExport = @('Invoke-Cryptex', 'Start-CryptexInteraction')
     CmdletsToExport = @()
     VariablesToExport = '*'
     AliasesToExport = @('cryptex')
@@ -78,18 +60,111 @@ try {
     # Create PowerShell module script
     $modulePath = Join-Path $installDir "Cryptex.psm1"
     $moduleContent = @"
+# Cryptex PowerShell Module
+
+# Configuration
+`$script:ApiKey = `$null
+`$script:ConfigFile = Join-Path `$env:USERPROFILE ".cryptex-config"
+
+function Initialize-CryptexConfig {
+    if (Test-Path `$script:ConfigFile) {
+        `$config = Get-Content `$script:ConfigFile | ConvertFrom-Json
+        `$script:ApiKey = `$config.ApiKey
+    }
+}
+
+function Set-CryptexApiKey {
+    param(
+        [Parameter(Mandatory=`$true)]
+        [string]`$ApiKey
+    )
+    
+    `$config = @{
+        ApiKey = `$ApiKey
+    }
+    
+    `$config | ConvertTo-Json | Set-Content `$script:ConfigFile
+    `$script:ApiKey = `$ApiKey
+}
+
+function Start-CryptexInteraction {
+    param(
+        [Parameter(Position=0)]
+        [string]`$InitialPrompt
+    )
+
+    if (-not `$script:ApiKey) {
+        Write-Host "⚠️ API Key not set. Please set it using:"
+        Write-Host "    Set-CryptexApiKey 'your-api-key'"
+        return
+    }
+
+    Write-Host "🤖 Starting Cryptex interaction..."
+    Write-Host "Type 'exit' to end the session"
+    Write-Host ""
+
+    while (`$true) {
+        if (`$InitialPrompt) {
+            `$input = `$InitialPrompt
+            `$InitialPrompt = `$null
+        } else {
+            Write-Host "You: " -NoNewline
+            `$input = Read-Host
+        }
+
+        if (`$input -eq 'exit') {
+            break
+        }
+
+        try {
+            # Here we'll add the actual API call logic
+            Write-Host "`nCryptex: This is a placeholder response. API integration coming soon!`n"
+        } catch {
+            Write-Host "❌ Error: `$_"
+        }
+    }
+}
+
 function Invoke-Cryptex {
     param(
         [Parameter(ValueFromRemainingArguments=`$true)]
         [string[]]`$Arguments
     )
     
-    `$cryptexPath = Join-Path `$PSScriptRoot 'bin\cryptex.js'
-    & node `$cryptexPath @Arguments
+    Initialize-CryptexConfig
+
+    if (`$Arguments.Count -eq 0) {
+        Write-Host "Usage: cryptex <command> [arguments]"
+        Write-Host ""
+        Write-Host "Commands:"
+        Write-Host "  interact    Start interactive mode"
+        Write-Host "  setkey     Set API key"
+        return
+    }
+
+    switch (`$Arguments[0]) {
+        'interact' {
+            Start-CryptexInteraction (`$Arguments | Select-Object -Skip 1)
+        }
+        'setkey' {
+            if (`$Arguments.Count -lt 2) {
+                Write-Host "Usage: cryptex setkey <your-api-key>"
+                return
+            }
+            Set-CryptexApiKey `$Arguments[1]
+            Write-Host "✅ API key set successfully"
+        }
+        default {
+            Write-Host "Unknown command: `$(`$Arguments[0])"
+        }
+    }
 }
 
+# Create alias
 Set-Alias -Name cryptex -Value Invoke-Cryptex
-Export-ModuleMember -Function Invoke-Cryptex -Alias cryptex
+
+# Export members
+Export-ModuleMember -Function @('Invoke-Cryptex', 'Start-CryptexInteraction', 'Set-CryptexApiKey') -Alias cryptex
 "@
 
     Set-Content -Path $modulePath -Value $moduleContent
@@ -97,6 +172,7 @@ Export-ModuleMember -Function Invoke-Cryptex -Alias cryptex
     Write-Host "`n✨ Installation complete!"
     Write-Host "To start using Cryptex, run:"
     Write-Host "    Import-Module Cryptex"
+    Write-Host "    cryptex setkey YOUR-API-KEY"
     Write-Host "    cryptex interact"
     Write-Host "`nNote: The module will be automatically imported in new PowerShell sessions."
 
@@ -108,5 +184,4 @@ Export-ModuleMember -Function Invoke-Cryptex -Alias cryptex
     if (Test-Path $tempDir) {
         Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
     }
-    Pop-Location
 }
