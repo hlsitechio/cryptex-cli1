@@ -3,6 +3,7 @@
 param()
 
 $ErrorActionPreference = "Stop"
+$VerbosePreference = "Continue"
 $ProgressPreference = 'SilentlyContinue'  # Speeds up downloads significantly
 
 Write-Host "🧙‍♂️ Summoning Cryptex..."
@@ -15,23 +16,25 @@ $possiblePaths = @(
     # Standard Documents folder
     [Environment]::GetFolderPath('MyDocuments'),
     # User profile Documents
-    Join-Path $env:USERPROFILE "Documents",
+    (Join-Path $env:USERPROFILE "Documents"),
     # OneDrive Documents
-    Join-Path $env:USERPROFILE "OneDrive\Documents",
+    (Join-Path $env:USERPROFILE "OneDrive\Documents"),
     # Direct user profile
     $env:USERPROFILE
 )
 
+Write-Verbose "Searching for valid installation path..."
 foreach ($basePath in $possiblePaths) {
-    $testPath = Join-Path $basePath "WindowsPowerShell\Modules"
+    Write-Verbose "Checking path: $basePath"
     if (Test-Path $basePath) {
-        $modulesPath = $testPath
+        Write-Verbose "Found valid base path: $basePath"
+        $modulesPath = Join-Path $basePath "WindowsPowerShell\Modules"
         break
     }
 }
 
 if (-not $modulesPath) {
-    # If no suitable path found, default to user profile
+    Write-Verbose "No existing paths found, defaulting to user profile"
     $modulesPath = Join-Path $env:USERPROFILE "Documents\WindowsPowerShell\Modules"
 }
 
@@ -40,14 +43,30 @@ $installDir = Join-Path $modulesPath "Cryptex"
 Write-Host "Installing to: $installDir"
 
 # Create directories if they don't exist
-New-Item -ItemType Directory -Force -Path $modulesPath | Out-Null
-if (Test-Path $installDir) {
-    Remove-Item -Path $installDir -Recurse -Force
+Write-Verbose "Creating module directory: $modulesPath"
+try {
+    if (-not (Test-Path $modulesPath)) {
+        New-Item -ItemType Directory -Force -Path $modulesPath | Out-Null
+        Write-Verbose "Created modules directory successfully"
+    }
+
+    Write-Verbose "Removing existing Cryptex installation if present"
+    if (Test-Path $installDir) {
+        Remove-Item -Path $installDir -Recurse -Force
+        Write-Verbose "Removed existing installation"
+    }
+
+    Write-Verbose "Creating Cryptex installation directory"
+    New-Item -ItemType Directory -Force -Path $installDir | Out-Null
+    Write-Verbose "Created installation directory successfully"
+} catch {
+    Write-Error "Failed to create directories: $_"
+    Exit 1
 }
-New-Item -ItemType Directory -Force -Path $installDir | Out-Null
 
 # Create temp directory for download
 $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ([System.IO.Path]::GetRandomFileName())
+Write-Verbose "Creating temp directory: $tempDir"
 New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
 
 try {
@@ -56,20 +75,32 @@ try {
     $repoUrl = "https://github.com/hlsitechio/cryptexcli1/archive/refs/heads/main.zip"
     $zipPath = Join-Path $tempDir "cryptex.zip"
     
+    Write-Verbose "Downloading from: $repoUrl"
+    Write-Verbose "Saving to: $zipPath"
+    
     # Use TLS 1.2 for security
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     Invoke-WebRequest -Uri $repoUrl -OutFile $zipPath -UseBasicParsing
+    Write-Verbose "Download completed successfully"
 
     # Extract files
     Write-Host "Extracting files..."
+    Write-Verbose "Extracting zip to: $tempDir"
     Expand-Archive -Path $zipPath -DestinationPath $tempDir -Force
+    Write-Verbose "Extraction completed"
     
     # Copy files
     $sourceDir = Join-Path $tempDir "cryptexcli1-main"
-    Get-ChildItem -Path $sourceDir -File | Copy-Item -Destination $installDir -Force
+    Write-Verbose "Copying files from: $sourceDir to: $installDir"
+    Get-ChildItem -Path $sourceDir -File | ForEach-Object {
+        Write-Verbose "Copying file: $($_.Name)"
+        Copy-Item -Path $_.FullName -Destination $installDir -Force
+    }
+    Write-Verbose "File copy completed"
 
     # Create PowerShell module manifest
     $manifestPath = Join-Path $installDir "Cryptex.psd1"
+    Write-Verbose "Creating module manifest: $manifestPath"
     $manifestContent = @"
 @{
     ModuleVersion = '1.0'
@@ -87,9 +118,11 @@ try {
 }
 "@
     Set-Content -Path $manifestPath -Value $manifestContent -Force
+    Write-Verbose "Module manifest created successfully"
 
     # Create PowerShell module script
     $modulePath = Join-Path $installDir "Cryptex.psm1"
+    Write-Verbose "Creating module script: $modulePath"
     $moduleContent = @"
 # Cryptex PowerShell Module
 
@@ -203,6 +236,7 @@ Export-ModuleMember -Function @('Invoke-Cryptex', 'Start-CryptexInteraction', 'S
 "@
 
     Set-Content -Path $modulePath -Value $moduleContent -Force
+    Write-Verbose "Module script created successfully"
 
     Write-Host "`n✨ Installation complete!"
     Write-Host "To start using Cryptex, run:"
@@ -212,11 +246,13 @@ Export-ModuleMember -Function @('Invoke-Cryptex', 'Start-CryptexInteraction', 'S
     Write-Host "`nNote: The module will be automatically imported in new PowerShell sessions."
 
 } catch {
-    Write-Host "❌ Error during installation: $_"
+    Write-Error "Installation failed: $_"
+    Write-Verbose "Stack trace: $($_.ScriptStackTrace)"
     Exit 1
 } finally {
     # Cleanup
     if (Test-Path $tempDir) {
+        Write-Verbose "Cleaning up temp directory: $tempDir"
         Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
