@@ -7,38 +7,76 @@ $VerbosePreference = "Continue"
 $ProgressPreference = 'SilentlyContinue'  # Speeds up downloads significantly
 
 function Get-ModuleInstallPath {
-    # Get PowerShell module paths
+    # Get available paths
     $paths = @(
-        [System.IO.Path]::Combine($env:USERPROFILE, "OneDrive", "Documents", "WindowsPowerShell", "Modules"),
-        [System.IO.Path]::Combine($env:USERPROFILE, "Documents", "WindowsPowerShell", "Modules"),
-        [System.IO.Path]::Combine($env:ProgramFiles, "WindowsPowerShell", "Modules")
+        @{
+            Path = [System.IO.Path]::Combine($env:USERPROFILE, "Documents", "WindowsPowerShell", "Modules")
+            Description = "User Documents"
+        },
+        @{
+            Path = [System.IO.Path]::Combine($env:USERPROFILE, "OneDrive", "Documents", "WindowsPowerShell", "Modules")
+            Description = "OneDrive Documents"
+        },
+        @{
+            Path = [System.IO.Path]::Combine($env:ProgramFiles, "WindowsPowerShell", "Modules")
+            Description = "System-wide (requires admin)"
+        }
     )
 
-    Write-Verbose "Checking module paths..."
-    foreach ($path in $paths) {
-        $parentPath = Split-Path $path -Parent
-        Write-Verbose "Checking path: $path"
-        Write-Verbose "Parent path: $parentPath"
-        
-        if (Test-Path $parentPath) {
-            Write-Verbose "Parent path exists: $parentPath"
-            if (-not (Test-Path $path)) {
-                try {
-                    Write-Verbose "Creating module directory: $path"
-                    New-Item -ItemType Directory -Path $path -Force | Out-Null
-                    Write-Verbose "Successfully created: $path"
-                } catch {
-                    Write-Warning "Failed to create directory $path : $_"
-                    continue
-                }
-            }
-            return $path
-        } else {
-            Write-Verbose "Parent path does not exist: $parentPath"
-        }
+    # Show available paths
+    Write-Host "`nAvailable installation locations:"
+    for ($i = 0; $i -lt $paths.Count; $i++) {
+        $exists = Test-Path (Split-Path $paths[$i].Path -Parent)
+        $status = if ($exists) { "Available" } else { "Not Available" }
+        Write-Host "$($i + 1). $($paths[$i].Description) ($status)"
+        Write-Host "   Path: $($paths[$i].Path)"
     }
 
-    throw "Could not find or create a valid PowerShell module path"
+    # Ask user for preference
+    while ($true) {
+        Write-Host "`nWhere would you like to install Cryptex? (1-$($paths.Count), or 'q' to quit): " -NoNewline
+        $choice = Read-Host
+
+        if ($choice -eq 'q') {
+            throw "Installation cancelled by user"
+        }
+
+        $index = 0
+        if ([int]::TryParse($choice, [ref]$index)) {
+            $index--  # Convert to 0-based index
+            if ($index -ge 0 -and $index -lt $paths.Count) {
+                $selectedPath = $paths[$index].Path
+                $parentPath = Split-Path $selectedPath -Parent
+
+                # Check if parent path exists
+                if (-not (Test-Path $parentPath)) {
+                    Write-Host "The selected location is not available on this system. Please choose another."
+                    continue
+                }
+
+                # Check if admin rights are needed
+                if ($index -eq 2) {  # System-wide installation
+                    $identity = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
+                    $isAdmin = $identity.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+                    
+                    if (-not $isAdmin) {
+                        Write-Host "System-wide installation requires administrator privileges. Please run as administrator or choose another location."
+                        continue
+                    }
+                }
+
+                # Create module directory if it doesn't exist
+                if (-not (Test-Path $selectedPath)) {
+                    Write-Verbose "Creating module directory: $selectedPath"
+                    New-Item -ItemType Directory -Path $selectedPath -Force | Out-Null
+                }
+
+                return $selectedPath
+            }
+        }
+
+        Write-Host "Invalid choice. Please enter a number between 1 and $($paths.Count)"
+    }
 }
 
 Write-Host "Installing Cryptex..."
@@ -51,13 +89,17 @@ try {
     }
     
     $modulePath = Join-Path $modulesRoot "Cryptex"
-    Write-Host "Installing to: $modulePath"
+    Write-Host "`nInstalling to: $modulePath"
 
     # Remove existing installation if present
     if (Test-Path $modulePath) {
-        Write-Verbose "Removing existing Cryptex installation"
+        Write-Host "Existing installation found. Would you like to remove it? (y/n): " -NoNewline
+        $response = Read-Host
+        if ($response -ne 'y') {
+            throw "Installation cancelled by user"
+        }
+        Write-Verbose "Removing existing installation"
         Remove-Item -Path $modulePath -Recurse -Force -ErrorAction Stop
-        Write-Verbose "Removed existing installation"
     }
 
     # Create module directory
@@ -66,7 +108,7 @@ try {
 
     # Create module manifest
     $manifestPath = Join-Path $modulePath "Cryptex.psd1"
-    Write-Verbose "Creating module manifest: $manifestPath"
+    Write-Verbose "Creating module manifest"
     
     $manifest = @{
         Path = $manifestPath
@@ -85,7 +127,7 @@ try {
     }
     
     New-ModuleManifest @manifest
-    Write-Verbose "Module manifest created successfully"
+    Write-Verbose "Module manifest created"
 
     # Create module script
     $moduleContent = @'
@@ -332,11 +374,15 @@ Export-ModuleMember -Function Invoke-Cryptex -Alias cryptex
 
     $moduleScriptPath = Join-Path $modulePath "Cryptex.psm1"
     Write-Verbose "Creating module script: $moduleScriptPath"
-    [System.IO.File]::WriteAllText($moduleScriptPath, $moduleContent, [System.Text.UTF8Encoding]::new($false))
-    Write-Verbose "Module script created successfully"
+    
+    # Write module script with UTF-8 encoding (no BOM)
+    Write-Verbose "Writing module script"
+    $encoding = [System.Text.UTF8Encoding]::new($false)
+    [System.IO.File]::WriteAllText($moduleScriptPath, $moduleContent, $encoding)
+    Write-Verbose "Module script created"
 
     Write-Host "`nInstallation complete!"
-    Write-Host "Would you like to set up your API key now? (y/n)" -NoNewline
+    Write-Host "Would you like to set up your API key now? (y/n): " -NoNewline
     $response = Read-Host
     
     if ($response -eq 'y') {
