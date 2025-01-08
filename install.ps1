@@ -8,47 +8,68 @@ $ProgressPreference = 'SilentlyContinue'  # Speeds up downloads significantly
 
 function Get-ModuleInstallPath {
     # Get PowerShell module paths
-    $modulePaths = $env:PSModulePath -split ';' | Where-Object { $_ -match 'WindowsPowerShell\\Modules$' }
-    Write-Verbose "Available module paths:"
-    $modulePaths | ForEach-Object { Write-Verbose "  $_" }
+    $paths = @(
+        [System.IO.Path]::Combine($env:USERPROFILE, "OneDrive", "Documents", "WindowsPowerShell", "Modules"),
+        [System.IO.Path]::Combine($env:USERPROFILE, "Documents", "WindowsPowerShell", "Modules"),
+        [System.IO.Path]::Combine($env:ProgramFiles, "WindowsPowerShell", "Modules")
+    )
 
-    # Try each path in order
-    foreach ($path in $modulePaths) {
-        if (Test-Path (Split-Path $path -Parent)) {
-            Write-Verbose "Using module path: $path"
+    Write-Verbose "Checking module paths..."
+    foreach ($path in $paths) {
+        $parentPath = Split-Path $path -Parent
+        Write-Verbose "Checking path: $path"
+        Write-Verbose "Parent path: $parentPath"
+        
+        if (Test-Path $parentPath) {
+            Write-Verbose "Parent path exists: $parentPath"
             if (-not (Test-Path $path)) {
-                Write-Verbose "Creating module directory: $path"
-                New-Item -ItemType Directory -Path $path -Force | Out-Null
+                try {
+                    Write-Verbose "Creating module directory: $path"
+                    New-Item -ItemType Directory -Path $path -Force | Out-Null
+                    Write-Verbose "Successfully created: $path"
+                } catch {
+                    Write-Warning "Failed to create directory $path : $_"
+                    continue
+                }
             }
             return $path
+        } else {
+            Write-Verbose "Parent path does not exist: $parentPath"
         }
     }
 
     throw "Could not find or create a valid PowerShell module path"
 }
 
-Write-Host "🧙‍♂️ Summoning Cryptex..."
-
-# Get module installation path
-$modulesRoot = Get-ModuleInstallPath
-$modulePath = Join-Path $modulesRoot "Cryptex"
-Write-Host "Installing to: $modulePath"
-
-# Remove existing installation if present
-if (Test-Path $modulePath) {
-    Write-Verbose "Removing existing Cryptex installation"
-    Remove-Item -Path $modulePath -Recurse -Force
-    Write-Verbose "Removed existing installation"
-}
-
-# Create module directory
-Write-Verbose "Creating module directory"
-New-Item -ItemType Directory -Path $modulePath -Force | Out-Null
+Write-Host "Installing Cryptex..."
 
 try {
+    # Get module installation path
+    $modulesRoot = Get-ModuleInstallPath
+    if (-not $modulesRoot) {
+        throw "Failed to determine module installation path"
+    }
+    
+    $modulePath = Join-Path $modulesRoot "Cryptex"
+    Write-Host "Installing to: $modulePath"
+
+    # Remove existing installation if present
+    if (Test-Path $modulePath) {
+        Write-Verbose "Removing existing Cryptex installation"
+        Remove-Item -Path $modulePath -Recurse -Force -ErrorAction Stop
+        Write-Verbose "Removed existing installation"
+    }
+
+    # Create module directory
+    Write-Verbose "Creating module directory"
+    New-Item -ItemType Directory -Path $modulePath -Force | Out-Null
+
     # Create module manifest
     $manifestPath = Join-Path $modulePath "Cryptex.psd1"
+    Write-Verbose "Creating module manifest: $manifestPath"
+    
     $manifest = @{
+        Path = $manifestPath
         ModuleVersion = '1.0.0'
         GUID = 'b7c3a04d-d3b0-4c1d-8b89-9b5d3e4e4e4e'
         Author = 'HLSitechIO'
@@ -63,11 +84,10 @@ try {
         AliasesToExport = @('cryptex')
     }
     
-    Write-Verbose "Creating module manifest: $manifestPath"
-    New-ModuleManifest -Path $manifestPath @manifest
+    New-ModuleManifest @manifest
     Write-Verbose "Module manifest created successfully"
 
-    # Create module script with UTF-8 encoding
+    # Create module script
     $moduleContent = @'
 # Cryptex PowerShell Module
 $ErrorActionPreference = 'Stop'
@@ -162,14 +182,14 @@ function Set-CryptexApiKey {
         
         $config | ConvertTo-Json | Set-Content $script:ConfigFile -Force
         $script:ApiKey = $ApiKey
-        Write-Host "✅ API key validated and saved successfully"
+        Write-Host "API key validated and saved successfully"
         
         # Clear sensitive data
         if ($Prompt) {
             Remove-Variable -Name ApiKey, secureKey
         }
     } else {
-        Write-Host "❌ Invalid API key. Please check your key and try again."
+        Write-Host "Invalid API key. Please check your key and try again."
         return
     }
 }
@@ -187,12 +207,12 @@ function Start-CryptexInteraction {
     )
 
     if (-not $script:ApiKey) {
-        Write-Host "⚠️ API Key not set. Please set it using:"
+        Write-Host "API Key not set. Please set it using:"
         Write-Host "    cryptex setkey -Prompt"
         return
     }
 
-    Write-Host "🤖 Starting Cryptex interaction..."
+    Write-Host "Starting Cryptex interaction..."
     Write-Host "Using model: $Model"
     Write-Host "Type 'exit' to end the session"
     Write-Host ""
@@ -260,7 +280,7 @@ function Start-CryptexInteraction {
             } else {
                 $errorMessage = $_.Exception.Message
             }
-            Write-Host "❌ Error: $errorMessage"
+            Write-Host "Error: $errorMessage"
         }
     }
 }
@@ -312,11 +332,10 @@ Export-ModuleMember -Function Invoke-Cryptex -Alias cryptex
 
     $moduleScriptPath = Join-Path $modulePath "Cryptex.psm1"
     Write-Verbose "Creating module script: $moduleScriptPath"
-    $utf8NoBomEncoding = New-Object System.Text.UTF8Encoding $false
-    [System.IO.File]::WriteAllLines($moduleScriptPath, $moduleContent, $utf8NoBomEncoding)
+    [System.IO.File]::WriteAllText($moduleScriptPath, $moduleContent, [System.Text.UTF8Encoding]::new($false))
     Write-Verbose "Module script created successfully"
 
-    Write-Host "`n✨ Installation complete!"
+    Write-Host "`nInstallation complete!"
     Write-Host "Would you like to set up your API key now? (y/n)" -NoNewline
     $response = Read-Host
     
@@ -348,10 +367,4 @@ Export-ModuleMember -Function Invoke-Cryptex -Alias cryptex
     Write-Error "Installation failed: $_"
     Write-Error $_.ScriptStackTrace
     Exit 1
-} finally {
-    # Cleanup temp directory if it exists
-    if (Test-Path $tempDir) {
-        Write-Verbose "Cleaning up temp directory: $tempDir"
-        Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
-    }
 }
