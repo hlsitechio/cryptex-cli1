@@ -29,7 +29,7 @@ git clone https://github.com/hlsitechio/cryptexcli1.git $installDir
 
 # Install dependencies
 Write-Host "Installing dependencies..."
-Set-Location (Join-Path $installDir "cryptex-cli")
+Set-Location $installDir
 npm install --no-package-lock
 
 # Create global command
@@ -40,7 +40,7 @@ New-Item -ItemType Directory -Force -Path $binDir | Out-Null
 $cmdPath = Join-Path $binDir "cryptex.cmd"
 @"
 @echo off
-node "$installDir\cryptex-cli\bin\cryptex.js" %*
+node "$installDir\bin\cryptex.js" %*
 "@ | Out-File -FilePath $cmdPath -Encoding ASCII
 
 # Add to PATH if not already there
