@@ -15,32 +15,40 @@ Test-Command "git"
 Test-Command "node"
 Test-Command "npm"
 
-# Set npm prefix to user directory to avoid permission issues
-$npmPrefix = Join-Path $env:USERPROFILE ".npm-packages"
-Write-Host "Setting npm prefix to: $npmPrefix"
-npm config set prefix $npmPrefix
-
-# Add npm bin folder to the current PATH
-$npmBin = Join-Path $npmPrefix "bin"
-if ($env:Path -notmatch [regex]::Escape($npmBin)) {
-    Write-Host "Adding $npmBin to PATH for this session..."
-    $env:PATH = "$npmBin;$env:PATH"
-}
-
-# Clone and install
+# Set installation directory
 $installDir = Join-Path $env:USERPROFILE ".cryptex"
 Write-Host "Installing to: $installDir"
+
+# Remove existing installation if present
 Remove-Item -Recurse -Force $installDir -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path $installDir | Out-Null
+
+# Clone repository
+Write-Host "Cloning repository..."
 git clone https://github.com/hlsitechio/cryptexcli1.git $installDir
 
-# Install dependencies and create global link
-Set-Location (Join-Path $installDir "cryptex-cli")
+# Install dependencies
 Write-Host "Installing dependencies..."
-npm install --no-save
+Set-Location (Join-Path $installDir "cryptex-cli")
+npm install --no-package-lock
 
-# Create global link
-Write-Host "Creating global link..."
-npm link
+# Create global command
+Write-Host "Creating global command..."
+$binDir = Join-Path $env:USERPROFILE "bin"
+New-Item -ItemType Directory -Force -Path $binDir | Out-Null
+
+$cmdPath = Join-Path $binDir "cryptex.cmd"
+@"
+@echo off
+node "$installDir\cryptex-cli\bin\cryptex.js" %*
+"@ | Out-File -FilePath $cmdPath -Encoding ASCII
+
+# Add to PATH if not already there
+$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+if ($userPath -notmatch [regex]::Escape($binDir)) {
+    [Environment]::SetEnvironmentVariable("Path", "$userPath;$binDir", "User")
+    $env:Path = "$env:Path;$binDir"
+}
 
 Write-Host "`n✨ Installation complete! Try 'cryptex interact' to begin your magical journey."
-Write-Host "Note: If 'cryptex' is not recognized in a new terminal, you may need to restart your terminal."
+Write-Host "Note: If 'cryptex' is not recognized, you may need to restart your terminal."
