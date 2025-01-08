@@ -16,6 +16,7 @@ function Test-Command($cmd) {
 }
 
 Test-Command "node"
+Test-Command "npm"
 
 # Set installation directory in PowerShell modules path
 $modulesPath = Join-Path ([Environment]::GetFolderPath('MyDocuments')) "WindowsPowerShell\Modules"
@@ -44,6 +45,12 @@ try {
     Write-Host "Extracting files..."
     Expand-Archive -Path $zipPath -DestinationPath $tempDir -Force
     Copy-Item -Path (Join-Path $tempDir "cryptexcli1-main\*") -Destination $installDir -Recurse -Force
+
+    # Install npm dependencies
+    Write-Host "Installing dependencies..."
+    Push-Location $installDir
+    npm install --no-package-lock --no-save
+    Pop-Location
 
     # Create PowerShell module manifest
     $manifestPath = Join-Path $installDir "Cryptex.psd1"
@@ -101,4 +108,5 @@ Export-ModuleMember -Function Invoke-Cryptex -Alias cryptex
     if (Test-Path $tempDir) {
         Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
     }
+    Pop-Location
 }
