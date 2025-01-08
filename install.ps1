@@ -7,45 +7,29 @@ $VerbosePreference = "Continue"
 $ProgressPreference = 'SilentlyContinue'  # Speeds up downloads significantly
 
 function Get-ModuleInstallPath {
-    Write-Verbose "Checking PowerShell module paths..."
-    
     # Get PowerShell module paths
-    $modulePaths = $env:PSModulePath -split ';'
-    Write-Verbose "Available module paths:"
-    $modulePaths | ForEach-Object { Write-Verbose "  $_" }
+    $paths = @(
+        # First try OneDrive path
+        [System.IO.Path]::Combine($env:USERPROFILE, "OneDrive", "Documents", "WindowsPowerShell", "Modules"),
+        # Then regular Documents
+        [System.IO.Path]::Combine($env:USERPROFILE, "Documents", "WindowsPowerShell", "Modules"),
+        # Finally system path
+        [System.IO.Path]::Combine($env:ProgramFiles, "WindowsPowerShell", "Modules")
+    )
 
-    # First try OneDrive path
-    $oneDrivePath = Join-Path $env:USERPROFILE "OneDrive\Documents\WindowsPowerShell\Modules"
-    if (Test-Path (Split-Path $oneDrivePath)) {
-        Write-Verbose "Using OneDrive module path: $oneDrivePath"
-        return $oneDrivePath
+    foreach ($path in $paths) {
+        $parentPath = Split-Path $path -Parent
+        if (Test-Path $parentPath) {
+            Write-Verbose "Found valid module path: $path"
+            if (-not (Test-Path $path)) {
+                Write-Verbose "Creating module directory: $path"
+                New-Item -ItemType Directory -Path $path -Force | Out-Null
+            }
+            return $path
+        }
     }
 
-    # Then try user Documents path
-    $documentsPath = Join-Path $env:USERPROFILE "Documents\WindowsPowerShell\Modules"
-    if (Test-Path (Split-Path $documentsPath)) {
-        Write-Verbose "Using Documents module path: $documentsPath"
-        return $documentsPath
-    }
-
-    # Finally try system-wide path
-    $systemPath = "$env:ProgramFiles\WindowsPowerShell\Modules"
-    if (Test-Path $systemPath) {
-        Write-Verbose "Using system module path: $systemPath"
-        return $systemPath
-    }
-
-    # If no paths exist, create in OneDrive if available
-    if (Test-Path (Join-Path $env:USERPROFILE "OneDrive")) {
-        Write-Verbose "Creating OneDrive module path: $oneDrivePath"
-        New-Item -ItemType Directory -Force -Path (Split-Path $oneDrivePath) | Out-Null
-        return $oneDrivePath
-    }
-
-    # Default to Documents path
-    Write-Verbose "Creating Documents module path: $documentsPath"
-    New-Item -ItemType Directory -Force -Path (Split-Path $documentsPath) | Out-Null
-    return $documentsPath
+    throw "Could not find or create a valid PowerShell module path"
 }
 
 Write-Host "🧙‍♂️ Summoning Cryptex..."
@@ -53,13 +37,7 @@ Write-Host "🧙‍♂️ Summoning Cryptex..."
 # Get module installation path
 $modulesRoot = Get-ModuleInstallPath
 $modulePath = Join-Path $modulesRoot "Cryptex"
-Write-Verbose "Installing to: $modulePath"
-
-# Create the modules directory if it doesn't exist
-if (-not (Test-Path $modulesRoot)) {
-    Write-Verbose "Creating module directory: $modulesRoot"
-    New-Item -ItemType Directory -Path $modulesRoot -Force | Out-Null
-}
+Write-Host "Installing to: $modulePath"
 
 # Remove existing installation if present
 if (Test-Path $modulePath) {
@@ -68,38 +46,11 @@ if (Test-Path $modulePath) {
     Write-Verbose "Removed existing installation"
 }
 
+# Create module directory
+Write-Verbose "Creating module directory"
+New-Item -ItemType Directory -Path $modulePath -Force | Out-Null
+
 try {
-    # Create temp directory for download
-    $tempDir = Join-Path $env:TEMP ([System.IO.Path]::GetRandomFileName())
-    Write-Verbose "Creating temp directory: $tempDir"
-    New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
-
-    # Download the repository
-    Write-Host "Downloading Cryptex..."
-    $zipFile = Join-Path $tempDir "cryptex.zip"
-    $downloadUrl = "https://github.com/hlsitechio/cryptexcli1/archive/refs/heads/main.zip"
-    
-    Write-Verbose "Downloading from: $downloadUrl"
-    Write-Verbose "Saving to: $zipFile"
-    
-    Invoke-WebRequest -Uri $downloadUrl -OutFile $zipFile
-    Write-Verbose "Download completed successfully"
-
-    # Extract the zip
-    Write-Host "Extracting files..."
-    Write-Verbose "Extracting zip to: $tempDir"
-    Expand-Archive -Path $zipFile -DestinationPath $tempDir -Force
-    Write-Verbose "Extraction completed"
-    
-    # Create module directory if it doesn't exist
-    if (-not (Test-Path $modulePath)) {
-        Write-Verbose "Creating module directory: $modulePath"
-        New-Item -ItemType Directory -Force -Path $modulePath | Out-Null
-    }
-
-    # Create module files
-    Write-Verbose "Creating module files in: $modulePath"
-    
     # Create module manifest
     $manifestPath = Join-Path $modulePath "Cryptex.psd1"
     $manifest = @{
@@ -110,17 +61,22 @@ try {
         Copyright = '(c) 2025 HLSitechIO. All rights reserved.'
         Description = 'Cryptex CLI for Google Gemini AI'
         PowerShellVersion = '5.1'
+        RootModule = 'Cryptex.psm1'
         FunctionsToExport = @('Invoke-Cryptex')
         CmdletsToExport = @()
         VariablesToExport = '*'
-        AliasesToExport = @()
-        RootModule = 'Cryptex.psm1'
+        AliasesToExport = @('cryptex')
     }
+    
+    Write-Verbose "Creating module manifest: $manifestPath"
     New-ModuleManifest -Path $manifestPath @manifest
     Write-Verbose "Module manifest created successfully"
 
     # Create module script with UTF-8 encoding
     $moduleContent = @'
+# Cryptex PowerShell Module
+$ErrorActionPreference = 'Stop'
+
 # Configuration
 $script:ApiKey = $null
 $script:ConfigFile = Join-Path $env:USERPROFILE ".cryptex-config"
@@ -132,25 +88,58 @@ $script:DefaultTemperature = 0.7
 
 function Initialize-CryptexConfig {
     if (Test-Path $script:ConfigFile) {
-        $config = Get-Content $script:ConfigFile | ConvertFrom-Json
-        $script:ApiKey = $config.ApiKey
+        try {
+            $config = Get-Content $script:ConfigFile | ConvertFrom-Json
+            $script:ApiKey = $config.ApiKey
+        } catch {
+            Write-Warning "Failed to load config file. You may need to set your API key again."
+        }
     }
 }
 
-function Format-CryptexResponse {
+function Test-CryptexApiKey {
     param(
         [Parameter(Mandatory=$true)]
-        [string]$Response
+        [string]$ApiKey
     )
-    
-    $Response -split "`n" | ForEach-Object {
-        $line = $_.Trim()
-        if ($line) {
-            Write-Host $line
-            Start-Sleep -Milliseconds 50
+
+    try {
+        $headers = @{
+            'Content-Type' = 'application/json'
         }
+
+        $body = @{
+            'contents' = @(
+                @{
+                    'parts' = @(
+                        @{
+                            'text' = "test"
+                        }
+                    )
+                }
+            )
+        } | ConvertTo-Json -Depth 10
+
+        $apiUrl = "$($script:ApiEndpoint)/$($script:ApiVersion)/models/$($script:DefaultModel):generateContent?key=$ApiKey"
+        Write-Verbose "Testing API connection to: $apiUrl"
+        
+        $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Headers $headers -Body $body -ContentType 'application/json'
+        return $true
+    } catch {
+        $errorMessage = ""
+        if ($_.ErrorDetails.Message) {
+            try {
+                $errorJson = $_.ErrorDetails.Message | ConvertFrom-Json
+                $errorMessage = $errorJson.error.message
+            } catch {
+                $errorMessage = $_.ErrorDetails.Message
+            }
+        } else {
+            $errorMessage = $_.Exception.Message
+        }
+        Write-Warning "API Key validation failed: $errorMessage"
+        return $false
     }
-    Write-Host ""
 }
 
 function Set-CryptexApiKey {
@@ -190,56 +179,6 @@ function Set-CryptexApiKey {
     }
 }
 
-function Test-CryptexApiKey {
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$ApiKey
-    )
-
-    try {
-        $headers = @{
-            'Content-Type' = 'application/json'
-        }
-
-        $body = @{
-            'contents' = @(
-                @{
-                    'parts' = @(
-                        @{
-                            'text' = "test"
-                        }
-                    )
-                }
-            )
-        } | ConvertTo-Json -Depth 10
-
-        $apiUrl = "$($script:ApiEndpoint)/$($script:ApiVersion)/models/$($script:DefaultModel):generateContent?key=$ApiKey"
-        Write-Verbose "Testing API connection to: $apiUrl"
-        
-        $response = Invoke-RestMethod -Uri $apiUrl `
-            -Method Post `
-            -Headers $headers `
-            -Body $body `
-            -ContentType 'application/json'
-
-        return $true
-    } catch {
-        $errorMessage = ""
-        if ($_.ErrorDetails.Message) {
-            try {
-                $errorJson = $_.ErrorDetails.Message | ConvertFrom-Json
-                $errorMessage = $errorJson.error.message
-            } catch {
-                $errorMessage = $_.ErrorDetails.Message
-            }
-        } else {
-            $errorMessage = $_.Exception.Message
-        }
-        Write-Warning "API Key validation failed: $errorMessage"
-        return $false
-    }
-}
-
 function Start-CryptexInteraction {
     param(
         [Parameter(Position=0)]
@@ -254,7 +193,7 @@ function Start-CryptexInteraction {
 
     if (-not $script:ApiKey) {
         Write-Host "⚠️ API Key not set. Please set it using:"
-        Write-Host "    Set-CryptexApiKey 'your-api-key'"
+        Write-Host "    cryptex setkey -Prompt"
         return
     }
 
@@ -299,15 +238,18 @@ function Start-CryptexInteraction {
             $apiUrl = "$($script:ApiEndpoint)/$($script:ApiVersion)/models/$Model`:generateContent?key=$($script:ApiKey)"
             Write-Verbose "Sending request to: $apiUrl"
             
-            $response = Invoke-RestMethod -Uri $apiUrl `
-                -Method Post `
-                -Headers $headers `
-                -Body $body `
-                -ContentType 'application/json'
+            $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Headers $headers -Body $body -ContentType 'application/json'
 
             # Stream the response
             if ($response.candidates -and $response.candidates[0].content.parts) {
-                Format-CryptexResponse -Response $response.candidates[0].content.parts[0].text
+                $response.candidates[0].content.parts[0].text -split "`n" | ForEach-Object {
+                    $line = $_.Trim()
+                    if ($line) {
+                        Write-Host $line
+                        Start-Sleep -Milliseconds 50
+                    }
+                }
+                Write-Host ""
             } else {
                 Write-Host "No response generated."
             }
@@ -342,8 +284,7 @@ function Invoke-Cryptex {
         Write-Host "Commands:"
         Write-Host "  interact [prompt]   Start interactive mode"
         Write-Host "  setkey <key>       Set API key"
-        Write-Host "  config             Show current configuration"
-        Write-Host "  config set         Set configuration options"
+        Write-Host "  setkey -Prompt     Set API key securely"
         return
     }
 
@@ -352,26 +293,13 @@ function Invoke-Cryptex {
             Start-CryptexInteraction ($Arguments | Select-Object -Skip 1)
         }
         'setkey' {
-            if ($Arguments.Count -lt 2) {
-                Write-Host "Usage: cryptex setkey <your-api-key>"
-                return
-            }
-            Set-CryptexApiKey $Arguments[1]
-        }
-        'config' {
-            if ($Arguments.Count -gt 1 -and $Arguments[1] -eq 'set') {
-                $params = @{}
-                for ($i = 2; $i -lt $Arguments.Count; $i += 2) {
-                    if ($i + 1 -lt $Arguments.Count) {
-                        $key = $Arguments[$i]
-                        $value = $Arguments[$i + 1]
-                        $params[$key] = $value
-                    }
-                }
-                Set-CryptexConfig @params
+            if ($Arguments.Count -eq 1 -or $Arguments[1] -eq '-Prompt') {
+                Set-CryptexApiKey -Prompt
+            } elseif ($Arguments.Count -gt 1) {
+                Set-CryptexApiKey $Arguments[1]
             } else {
-                $config = Get-CryptexConfig
-                $config | Format-List
+                Write-Host "Usage: cryptex setkey <your-api-key>"
+                Write-Host "   or: cryptex setkey -Prompt"
             }
         }
         default {
@@ -383,19 +311,20 @@ function Invoke-Cryptex {
 # Create alias for the module
 Set-Alias -Name cryptex -Value Invoke-Cryptex -Scope Global
 
-# Export functions
+# Export functions and alias
 Export-ModuleMember -Function Invoke-Cryptex -Alias cryptex
 '@
+
     $moduleScriptPath = Join-Path $modulePath "Cryptex.psm1"
+    Write-Verbose "Creating module script: $moduleScriptPath"
     $utf8NoBomEncoding = New-Object System.Text.UTF8Encoding $false
     [System.IO.File]::WriteAllLines($moduleScriptPath, $moduleContent, $utf8NoBomEncoding)
     Write-Verbose "Module script created successfully"
 
     Write-Host "`n✨ Installation complete!"
-    
-    # Prompt for API key
-    Write-Host "`nWould you like to set up your API key now? (y/n)" -NoNewline
+    Write-Host "Would you like to set up your API key now? (y/n)" -NoNewline
     $response = Read-Host
+    
     if ($response -eq 'y') {
         Write-Host "`nEnter your Google AI API key (input will be hidden):"
         $secureKey = Read-Host -AsSecureString
@@ -404,7 +333,7 @@ Export-ModuleMember -Function Invoke-Cryptex -Alias cryptex
         
         # Import module and set key
         Import-Module Cryptex -Force
-        Set-CryptexApiKey -Prompt
+        Set-CryptexApiKey $apiKey
 
         # Clear sensitive data from memory
         [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
@@ -414,16 +343,18 @@ Export-ModuleMember -Function Invoke-Cryptex -Alias cryptex
     } else {
         Write-Host "`nTo start using Cryptex later, run:"
         Write-Host "    Import-Module Cryptex"
-        Write-Host "    cryptex setkey YOUR-API-KEY"
+        Write-Host "    cryptex setkey -Prompt"
         Write-Host "    cryptex interact"
     }
-    
+
     Write-Host "`nNote: The module will be automatically imported in new PowerShell sessions."
 
 } catch {
     Write-Error "Installation failed: $_"
+    Write-Error $_.ScriptStackTrace
     Exit 1
 } finally {
+    # Cleanup temp directory if it exists
     if (Test-Path $tempDir) {
         Write-Verbose "Cleaning up temp directory: $tempDir"
         Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
