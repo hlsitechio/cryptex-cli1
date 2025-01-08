@@ -11,44 +11,76 @@ function Test-Command($cmd) {
     }
 }
 
-Test-Command "git"
 Test-Command "node"
-Test-Command "npm"
 
-# Set installation directory
-$installDir = Join-Path $env:USERPROFILE ".cryptex"
+# Set installation directory in PowerShell modules path
+$modulesPath = Join-Path $env:USERPROFILE "Documents\WindowsPowerShell\Modules"
+$installDir = Join-Path $modulesPath "Cryptex"
 Write-Host "Installing to: $installDir"
+
+# Create temp directory for download
+$tempDir = Join-Path $env:TEMP "cryptex-install"
+New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
+
+# Download repository as zip
+Write-Host "Downloading Cryptex..."
+$repoUrl = "https://github.com/hlsitechio/cryptexcli1/archive/refs/heads/main.zip"
+$zipPath = Join-Path $tempDir "cryptex.zip"
+Invoke-WebRequest -Uri $repoUrl -OutFile $zipPath
 
 # Remove existing installation if present
 Remove-Item -Recurse -Force $installDir -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $installDir | Out-Null
 
-# Clone repository
-Write-Host "Cloning repository..."
-git clone https://github.com/hlsitechio/cryptexcli1.git $installDir
+# Extract files
+Write-Host "Extracting files..."
+Expand-Archive -Path $zipPath -DestinationPath $tempDir -Force
+Copy-Item -Path (Join-Path $tempDir "cryptexcli1-main\*") -Destination $installDir -Recurse -Force
 
-# Install dependencies
-Write-Host "Installing dependencies..."
-Set-Location $installDir
-npm install --no-package-lock
+# Create PowerShell module manifest
+$manifestPath = Join-Path $installDir "Cryptex.psd1"
+$cryptexScript = Join-Path $installDir "bin\cryptex.js"
 
-# Create global command
-Write-Host "Creating global command..."
-$binDir = Join-Path $env:USERPROFILE "bin"
-New-Item -ItemType Directory -Force -Path $binDir | Out-Null
+$manifestContent = @"
+@{
+    ModuleVersion = '1.0'
+    GUID = 'a12345bc-1234-5678-9012-34567890abcd'
+    Author = 'Cryptex Team'
+    CompanyName = 'Cryptex'
+    Copyright = '(c) 2025 Cryptex. All rights reserved.'
+    Description = 'Cryptex CLI Tool'
+    PowerShellVersion = '5.0'
+    FunctionsToExport = @('Invoke-Cryptex')
+    CmdletsToExport = @()
+    VariablesToExport = '*'
+    AliasesToExport = @('cryptex')
+    RootModule = 'Cryptex.psm1'
+}
+"@
 
-$cmdPath = Join-Path $binDir "cryptex.cmd"
-@"
-@echo off
-node "$installDir\bin\cryptex.js" %*
-"@ | Out-File -FilePath $cmdPath -Encoding ASCII
+Set-Content -Path $manifestPath -Value $manifestContent
 
-# Add to PATH if not already there
-$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-if ($userPath -notmatch [regex]::Escape($binDir)) {
-    [Environment]::SetEnvironmentVariable("Path", "$userPath;$binDir", "User")
-    $env:Path = "$env:Path;$binDir"
+# Create PowerShell module script
+$modulePath = Join-Path $installDir "Cryptex.psm1"
+$moduleContent = @"
+function Invoke-Cryptex {
+    param(
+        [Parameter(ValueFromRemainingArguments=`$true)]
+        [string[]]`$Arguments
+    )
+    
+    `$cryptexPath = Join-Path `$PSScriptRoot 'bin\cryptex.js'
+    & node `$cryptexPath @Arguments
 }
 
-Write-Host "`n✨ Installation complete! Try 'cryptex interact' to begin your magical journey."
-Write-Host "Note: If 'cryptex' is not recognized, you may need to restart your terminal."
+Set-Alias -Name cryptex -Value Invoke-Cryptex
+Export-ModuleMember -Function Invoke-Cryptex -Alias cryptex
+"@
+
+Set-Content -Path $modulePath -Value $moduleContent
+
+# Cleanup
+Remove-Item -Path $tempDir -Recurse -Force
+
+Write-Host "`n✨ Installation complete! Try 'Import-Module Cryptex' and then 'cryptex interact' to begin your magical journey."
+Write-Host "Note: The module will be automatically imported in new PowerShell sessions."
