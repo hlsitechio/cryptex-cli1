@@ -136,19 +136,80 @@ function Initialize-CryptexConfig {
     }
 }
 
+function Test-CryptexApiKey {
+    param(
+        [Parameter(Mandatory=`$true)]
+        [string]`$ApiKey
+    )
+
+    try {
+        `$headers = @{
+            'Content-Type' = 'application/json'
+            'Authorization' = "Bearer `$ApiKey"
+        }
+
+        # Make a small test request
+        `$body = @{
+            'prompt' = 'test'
+            'max_tokens' = 1
+            'temperature' = 0.7
+            'model' = 'gpt-4'
+        } | ConvertTo-Json
+
+        `$response = Invoke-RestMethod -Uri 'https://api.cryptex.ai/v1/chat/completions' `
+            -Method Post `
+            -Headers `$headers `
+            -Body `$body `
+            -ContentType 'application/json'
+
+        return `$true
+    } catch {
+        `$errorDetails = `$_.ErrorDetails.Message
+        try {
+            `$errorJson = `$errorDetails | ConvertFrom-Json
+            Write-Warning "API Key validation failed: `$(`$errorJson.error.message)"
+        } catch {
+            Write-Warning "API Key validation failed: `$(`$_)"
+        }
+        return `$false
+    }
+}
+
+function Format-CryptexResponse {
+    param(
+        [Parameter(Mandatory=`$true)]
+        [string]`$Response
+    )
+
+    `$Response -split "`n" | ForEach-Object {
+        `$line = `$_.Trim()
+        if (`$line) {
+            Write-Host `$line
+            Start-Sleep -Milliseconds 50
+        }
+    }
+    Write-Host ""
+}
+
 function Set-CryptexApiKey {
     param(
         [Parameter(Mandatory=`$true)]
         [string]`$ApiKey
     )
     
-    `$config = @{
-        ApiKey = `$ApiKey
+    Write-Host "Validating API key..."
+    if (Test-CryptexApiKey -ApiKey `$ApiKey) {
+        `$config = @{
+            ApiKey = `$ApiKey
+        }
+        
+        `$config | ConvertTo-Json | Set-Content `$script:ConfigFile -Force
+        `$script:ApiKey = `$ApiKey
+        Write-Host "✅ API key validated and saved successfully"
+    } else {
+        Write-Host "❌ Invalid API key. Please check your key and try again."
+        return
     }
-    
-    `$config | ConvertTo-Json | Set-Content `$script:ConfigFile -Force
-    `$script:ApiKey = `$ApiKey
-    Write-Host "✅ API key set successfully"
 }
 
 function Start-CryptexInteraction {
@@ -181,10 +242,37 @@ function Start-CryptexInteraction {
         }
 
         try {
-            # Here we'll add the actual API call logic
-            Write-Host "`nCryptex: This is a placeholder response. API integration coming soon!`n"
+            # Prepare API request
+            `$headers = @{
+                'Content-Type' = 'application/json'
+                'Authorization' = "Bearer `$(`$script:ApiKey)"
+            }
+
+            `$body = @{
+                'prompt' = `$input
+                'max_tokens' = 1000
+                'temperature' = 0.7
+                'model' = 'gpt-4'  # or whatever model you're using
+            } | ConvertTo-Json
+
+            # Make API call
+            Write-Host "`nCryptex: " -NoNewline
+            `$response = Invoke-RestMethod -Uri 'https://api.cryptex.ai/v1/chat/completions' `
+                -Method Post `
+                -Headers `$headers `
+                -Body `$body `
+                -ContentType 'application/json'
+
+            # Stream the response
+            Format-CryptexResponse -Response `$response.choices[0].message.content
         } catch {
-            Write-Host "❌ Error: `$_"
+            `$errorDetails = `$_.ErrorDetails.Message
+            try {
+                `$errorJson = `$errorDetails | ConvertFrom-Json
+                Write-Host "❌ Error: `$(`$errorJson.error.message)"
+            } catch {
+                Write-Host "❌ Error: `$(`$_)"
+            }
         }
     }
 }
