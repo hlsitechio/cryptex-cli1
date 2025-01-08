@@ -124,6 +124,11 @@ try {
 # Configuration
 `$script:ApiKey = `$null
 `$script:ConfigFile = Join-Path `$env:USERPROFILE ".cryptex-config"
+`$script:ApiEndpoint = "https://generativelanguage.googleapis.com"
+`$script:ApiVersion = "v1beta"
+`$script:DefaultModel = "gemini-2.0-flash-exp"
+`$script:DefaultMaxTokens = 1000
+`$script:DefaultTemperature = 0.7
 
 function Initialize-CryptexConfig {
     if (Test-Path `$script:ConfigFile) {
@@ -145,18 +150,25 @@ function Test-CryptexApiKey {
     try {
         `$headers = @{
             'Content-Type' = 'application/json'
-            'Authorization' = "Bearer `$ApiKey"
         }
 
         # Make a small test request
         `$body = @{
-            'prompt' = 'test'
-            'max_tokens' = 1
-            'temperature' = 0.7
-            'model' = 'gpt-4'
-        } | ConvertTo-Json
+            'contents' = @(
+                @{
+                    'parts' = @(
+                        @{
+                            'text' = "test"
+                        }
+                    )
+                }
+            )
+        } | ConvertTo-Json -Depth 10
 
-        `$response = Invoke-RestMethod -Uri 'https://api.cryptex.ai/v1/chat/completions' `
+        `$apiUrl = "`$(`$script:ApiEndpoint)/`$(`$script:ApiVersion)/models/`$(`$script:DefaultModel):generateContent?key=`$ApiKey"
+        Write-Verbose "Testing API connection to: `$apiUrl"
+        
+        `$response = Invoke-RestMethod -Uri `$apiUrl `
             -Method Post `
             -Headers `$headers `
             -Body `$body `
@@ -164,13 +176,18 @@ function Test-CryptexApiKey {
 
         return `$true
     } catch {
-        `$errorDetails = `$_.ErrorDetails.Message
-        try {
-            `$errorJson = `$errorDetails | ConvertFrom-Json
-            Write-Warning "API Key validation failed: `$(`$errorJson.error.message)"
-        } catch {
-            Write-Warning "API Key validation failed: `$(`$_)"
+        `$errorMessage = ""
+        if (`$_.ErrorDetails.Message) {
+            try {
+                `$errorJson = `$_.ErrorDetails.Message | ConvertFrom-Json
+                `$errorMessage = `$errorJson.error.message
+            } catch {
+                `$errorMessage = `$_.ErrorDetails.Message
+            }
+        } else {
+            `$errorMessage = `$_.Exception.Message
         }
+        Write-Warning "API Key validation failed: `$errorMessage"
         return `$false
     }
 }
@@ -215,7 +232,13 @@ function Set-CryptexApiKey {
 function Start-CryptexInteraction {
     param(
         [Parameter(Position=0)]
-        [string]`$InitialPrompt
+        [string]`$InitialPrompt,
+        [Parameter(Mandatory=`$false)]
+        [string]`$Model = `$script:DefaultModel,
+        [Parameter(Mandatory=`$false)]
+        [int]`$MaxTokens = `$script:DefaultMaxTokens,
+        [Parameter(Mandatory=`$false)]
+        [double]`$Temperature = `$script:DefaultTemperature
     )
 
     if (-not `$script:ApiKey) {
@@ -225,6 +248,7 @@ function Start-CryptexInteraction {
     }
 
     Write-Host "🤖 Starting Cryptex interaction..."
+    Write-Host "Using model: `$Model"
     Write-Host "Type 'exit' to end the session"
     Write-Host ""
 
@@ -245,34 +269,50 @@ function Start-CryptexInteraction {
             # Prepare API request
             `$headers = @{
                 'Content-Type' = 'application/json'
-                'Authorization' = "Bearer `$(`$script:ApiKey)"
             }
 
             `$body = @{
-                'prompt' = `$input
-                'max_tokens' = 1000
-                'temperature' = 0.7
-                'model' = 'gpt-4'  # or whatever model you're using
-            } | ConvertTo-Json
+                'contents' = @(
+                    @{
+                        'parts' = @(
+                            @{
+                                'text' = `$input
+                            }
+                        )
+                    }
+                )
+            } | ConvertTo-Json -Depth 10
 
             # Make API call
             Write-Host "`nCryptex: " -NoNewline
-            `$response = Invoke-RestMethod -Uri 'https://api.cryptex.ai/v1/chat/completions' `
+            `$apiUrl = "`$(`$script:ApiEndpoint)/`$(`$script:ApiVersion)/models/`$Model`:generateContent?key=`$(`$script:ApiKey)"
+            Write-Verbose "Sending request to: `$apiUrl"
+            
+            `$response = Invoke-RestMethod -Uri `$apiUrl `
                 -Method Post `
                 -Headers `$headers `
                 -Body `$body `
                 -ContentType 'application/json'
 
             # Stream the response
-            Format-CryptexResponse -Response `$response.choices[0].message.content
-        } catch {
-            `$errorDetails = `$_.ErrorDetails.Message
-            try {
-                `$errorJson = `$errorDetails | ConvertFrom-Json
-                Write-Host "❌ Error: `$(`$errorJson.error.message)"
-            } catch {
-                Write-Host "❌ Error: `$(`$_)"
+            if (`$response.candidates -and `$response.candidates[0].content.parts) {
+                Format-CryptexResponse -Response `$response.candidates[0].content.parts[0].text
+            } else {
+                Write-Host "No response generated."
             }
+        } catch {
+            `$errorMessage = ""
+            if (`$_.ErrorDetails.Message) {
+                try {
+                    `$errorJson = `$_.ErrorDetails.Message | ConvertFrom-Json
+                    `$errorMessage = `$errorJson.error.message
+                } catch {
+                    `$errorMessage = `$_.ErrorDetails.Message
+                }
+            } else {
+                `$errorMessage = `$_.Exception.Message
+            }
+            Write-Host "❌ Error: `$errorMessage"
         }
     }
 }
