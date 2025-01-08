@@ -342,6 +342,7 @@ function Invoke-Cryptex {
         Write-Host "  interact [prompt]   Start interactive mode"
         Write-Host "  setkey <key>       Set API key"
         Write-Host "  setkey -Prompt     Set API key securely"
+        Write-Host "  uninstall          Remove Cryptex and all its data"
         return
     }
 
@@ -357,6 +358,15 @@ function Invoke-Cryptex {
             } else {
                 Write-Host "Usage: cryptex setkey <your-api-key>"
                 Write-Host "   or: cryptex setkey -Prompt"
+            }
+        }
+        'uninstall' {
+            $scriptPath = Split-Path $PSCommandPath -Parent
+            $uninstallScript = Join-Path $scriptPath "uninstall.ps1"
+            if (Test-Path $uninstallScript) {
+                & $uninstallScript
+            } else {
+                Write-Host "Uninstall script not found. Please run uninstall.ps1 directly."
             }
         }
         default {

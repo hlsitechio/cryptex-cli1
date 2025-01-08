@@ -71,6 +71,31 @@ Ask a single question:
 cryptex interact "What is the capital of France?"
 ```
 
+## Uninstalling Cryptex
+
+You have two ways to uninstall Cryptex:
+
+1. **Using the command (Recommended)**
+   ```powershell
+   cryptex uninstall
+   ```
+
+2. **Manual uninstallation**
+   - Open PowerShell
+   - Navigate to your Cryptex installation:
+     ```powershell
+     cd C:\cryptex\cryptex-cli1-main
+     ```
+   - Run the uninstall script:
+     ```powershell
+     .\uninstall.ps1
+     ```
+
+The uninstaller will:
+- Remove all Cryptex module files
+- Delete your configuration file (including API key)
+- Clean up any temporary files
+
 ## Troubleshooting
 
 ### "Cannot run script" Error
