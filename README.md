@@ -4,43 +4,44 @@ A PowerShell-based CLI tool for interacting with Google's Gemini AI.
 
 ## Step-by-Step Installation Guide
 
-### Method 1: Easy Installation (Recommended)
+### Easy Installation (Recommended)
 
 1. **Create Installation Directory**
    - Open File Explorer
    - Navigate to your C: drive
    - Create a new folder called `cryptex`
-   - Inside `cryptex`, create another folder called `cryptex-cli1`
 
-2. **Download Files**
+2. **Download and Extract Files**
    - Click this link to download: [Download Cryptex](https://github.com/hlsitechio/cryptex-cli1/archive/refs/heads/main.zip)
-   - When the download completes, find the ZIP file in your Downloads folder
-   - Right-click the ZIP file and select "Extract All..."
-   - Copy all files from the extracted folder into `C:\cryptex\cryptex-cli1`
+   - When the download completes:
+     - Open your Downloads folder
+     - Right-click the downloaded ZIP file (cryptex-cli1-main.zip)
+     - Select "Extract All..."
+     - In the Extract window, browse to `C:\cryptex`
+     - Click "Extract"
+   - You should now have the files in `C:\cryptex\cryptex-cli1-main`
 
 3. **Install Cryptex**
-   - Open PowerShell (press Windows key, type "powershell", and click "Windows PowerShell")
-   - Copy and paste this command:
+   - Press Windows key + X and click "Windows PowerShell" or "Terminal"
+   - Copy and paste these commands:
      ```powershell
-     cd C:\cryptex\cryptex-cli1
-     ```
-   - Then run the installer:
-     ```powershell
+     cd C:\cryptex\cryptex-cli1-main
      .\install.ps1
      ```
-   - Choose where to install (recommended: option 1 for "User Documents")
-   - When asked about the API key, choose 'y' if you have one, 'n' if you don't yet
+   - When asked where to install:
+     - Choose option 1 for "User Documents" (recommended)
+     - If it asks to remove existing installation, type 'y'
+   - When asked about the API key:
+     - Choose 'y' if you have one
+     - Choose 'n' if you don't have one yet
 
-### Method 2: Using Git (For Developers)
-
-```powershell
-# Clone the repository
-git clone https://github.com/hlsitechio/cryptex-cli1.git
-cd cryptex-cli1
-
-# Run the installer
-.\install.ps1
-```
+4. **After Installation**
+   - Close PowerShell completely
+   - Open a new PowerShell window
+   - Test the installation:
+     ```powershell
+     cryptex interact "Hello!"
+     ```
 
 ## Getting Your API Key
 
@@ -51,7 +52,7 @@ cd cryptex-cli1
 
 ## Setting Up Your API Key
 
-1. Open PowerShell
+1. Open a new PowerShell window
 2. Run:
    ```powershell
    cryptex setkey -Prompt
@@ -80,12 +81,19 @@ Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
 
 ### Module Not Found
 If `cryptex` command isn't recognized:
-1. Close and reopen PowerShell
-2. Run the installer again: `C:\cryptex\cryptex-cli1\install.ps1`
+1. Make sure you're using a new PowerShell window
+2. Try importing the module manually:
+   ```powershell
+   Import-Module Cryptex
+   ```
+3. If that doesn't work:
+   - Close all PowerShell windows
+   - Open a new PowerShell window
+   - Run the installer again: `C:\cryptex\cryptex-cli1-main\install.ps1`
 
 ### Wrong Installation Location
 If you installed to the wrong location:
-1. Run the installer again: `C:\cryptex\cryptex-cli1\install.ps1`
+1. Run the installer again: `C:\cryptex\cryptex-cli1-main\install.ps1`
 2. Choose a different installation location
 
 ### API Key Issues

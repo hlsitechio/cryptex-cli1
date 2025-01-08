@@ -392,14 +392,28 @@ Export-ModuleMember -Function Invoke-Cryptex -Alias cryptex
         $apiKey = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
         
         # Import module and set key
-        Import-Module Cryptex -Force
-        Set-CryptexApiKey $apiKey
+        try {
+            Write-Verbose "Importing module Cryptex"
+            Remove-Module Cryptex -Force -ErrorAction SilentlyContinue
+            Import-Module -Name (Join-Path $modulePath "Cryptex.psd1") -Force -Verbose
+            
+            Write-Verbose "Setting API key"
+            Set-CryptexApiKey $apiKey
 
-        # Clear sensitive data from memory
-        [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
-        Remove-Variable -Name apiKey, secureKey, BSTR
-        
-        Write-Host "`nYou can now use 'cryptex interact' to start using Cryptex!"
+            # Clear sensitive data from memory
+            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
+            Remove-Variable -Name apiKey, secureKey, BSTR
+            
+            Write-Host "`nYou can now use 'cryptex interact' to start using Cryptex!"
+        } catch {
+            Write-Error "Failed to import module: $_"
+            Write-Host "`nTry these steps to fix the issue:"
+            Write-Host "1. Close this PowerShell window"
+            Write-Host "2. Open a new PowerShell window"
+            Write-Host "3. Run: Import-Module Cryptex"
+            Write-Host "4. Run: cryptex setkey -Prompt"
+            Exit 1
+        }
     } else {
         Write-Host "`nTo start using Cryptex later, run:"
         Write-Host "    Import-Module Cryptex"
