@@ -13,13 +13,11 @@ $modulesPath = $null
 
 # Try different possible locations for PowerShell modules
 $possiblePaths = @(
-    # Standard Documents folder
-    [Environment]::GetFolderPath('MyDocuments'),
     # User profile Documents
     (Join-Path $env:USERPROFILE "Documents"),
-    # OneDrive Documents
-    (Join-Path $env:USERPROFILE "OneDrive\Documents"),
-    # Direct user profile
+    # Standard Documents folder
+    [Environment]::GetFolderPath('MyDocuments'),
+    # Direct user profile as fallback
     $env:USERPROFILE
 )
 
@@ -92,15 +90,14 @@ try {
     # Copy files
     $sourceDir = Join-Path $tempDir "cryptexcli1-main"
     Write-Verbose "Copying files from: $sourceDir to: $installDir"
-    Get-ChildItem -Path $sourceDir -File | ForEach-Object {
-        Write-Verbose "Copying file: $($_.Name)"
-        Copy-Item -Path $_.FullName -Destination $installDir -Force
-    }
-    Write-Verbose "File copy completed"
+
+    # Create module files directly
+    $manifestPath = Join-Path $installDir "Cryptex.psd1"
+    $modulePath = Join-Path $installDir "Cryptex.psm1"
+
+    Write-Verbose "Creating module manifest: $manifestPath"
 
     # Create PowerShell module manifest
-    $manifestPath = Join-Path $installDir "Cryptex.psd1"
-    Write-Verbose "Creating module manifest: $manifestPath"
     $manifestContent = @"
 @{
     ModuleVersion = '1.0'
@@ -121,8 +118,6 @@ try {
     Write-Verbose "Module manifest created successfully"
 
     # Create PowerShell module script
-    $modulePath = Join-Path $installDir "Cryptex.psm1"
-    Write-Verbose "Creating module script: $modulePath"
     $moduleContent = @"
 # Cryptex PowerShell Module
 
