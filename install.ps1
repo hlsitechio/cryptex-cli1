@@ -99,7 +99,7 @@ try {
     New-ModuleManifest -Path $manifestPath @manifest
     Write-Verbose "Module manifest created successfully"
 
-    # Create module script
+    # Create module script with UTF-8 encoding
     $moduleContent = @'
 # Configuration
 $script:ApiKey = $null
@@ -350,9 +350,9 @@ Set-Alias -Name cryptex -Value Invoke-Cryptex -Scope Global
 # Export functions
 Export-ModuleMember -Function Invoke-Cryptex -Alias cryptex
 '@
-
     $moduleScriptPath = Join-Path $modulePath "Cryptex.psm1"
-    Set-Content -Path $moduleScriptPath -Value $moduleContent
+    $utf8NoBomEncoding = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllLines($moduleScriptPath, $moduleContent, $utf8NoBomEncoding)
     Write-Verbose "Module script created successfully"
 
     Write-Host "`n✨ Installation complete!"
