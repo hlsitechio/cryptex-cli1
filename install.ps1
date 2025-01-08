@@ -8,12 +8,33 @@ $ProgressPreference = 'SilentlyContinue'  # Speeds up downloads significantly
 Write-Host "🧙‍♂️ Summoning Cryptex..."
 
 # Set installation directory in PowerShell modules path
-$documentsPath = [Environment]::GetFolderPath('MyDocuments')
-if (-not $documentsPath) {
-    $documentsPath = Join-Path $env:USERPROFILE "Documents"
+$modulesPath = $null
+
+# Try different possible locations for PowerShell modules
+$possiblePaths = @(
+    # Standard Documents folder
+    [Environment]::GetFolderPath('MyDocuments'),
+    # User profile Documents
+    Join-Path $env:USERPROFILE "Documents",
+    # OneDrive Documents
+    Join-Path $env:USERPROFILE "OneDrive\Documents",
+    # Direct user profile
+    $env:USERPROFILE
+)
+
+foreach ($basePath in $possiblePaths) {
+    $testPath = Join-Path $basePath "WindowsPowerShell\Modules"
+    if (Test-Path $basePath) {
+        $modulesPath = $testPath
+        break
+    }
 }
 
-$modulesPath = Join-Path $documentsPath "WindowsPowerShell\Modules"
+if (-not $modulesPath) {
+    # If no suitable path found, default to user profile
+    $modulesPath = Join-Path $env:USERPROFILE "Documents\WindowsPowerShell\Modules"
+}
+
 $installDir = Join-Path $modulesPath "Cryptex"
 
 Write-Host "Installing to: $installDir"
@@ -42,7 +63,10 @@ try {
     # Extract files
     Write-Host "Extracting files..."
     Expand-Archive -Path $zipPath -DestinationPath $tempDir -Force
-    Copy-Item -Path (Join-Path $tempDir "cryptexcli1-main\*") -Destination $installDir -Recurse -Force
+    
+    # Copy files
+    $sourceDir = Join-Path $tempDir "cryptexcli1-main"
+    Get-ChildItem -Path $sourceDir -File | Copy-Item -Destination $installDir -Force
 
     # Create PowerShell module manifest
     $manifestPath = Join-Path $installDir "Cryptex.psd1"
@@ -62,7 +86,7 @@ try {
     RootModule = 'Cryptex.psm1'
 }
 "@
-    Set-Content -Path $manifestPath -Value $manifestContent
+    Set-Content -Path $manifestPath -Value $manifestContent -Force
 
     # Create PowerShell module script
     $modulePath = Join-Path $installDir "Cryptex.psm1"
@@ -94,7 +118,7 @@ function Set-CryptexApiKey {
         ApiKey = `$ApiKey
     }
     
-    `$config | ConvertTo-Json | Set-Content `$script:ConfigFile
+    `$config | ConvertTo-Json | Set-Content `$script:ConfigFile -Force
     `$script:ApiKey = `$ApiKey
     Write-Host "✅ API key set successfully"
 }
@@ -178,7 +202,7 @@ Set-Alias -Name cryptex -Value Invoke-Cryptex
 Export-ModuleMember -Function @('Invoke-Cryptex', 'Start-CryptexInteraction', 'Set-CryptexApiKey') -Alias cryptex
 "@
 
-    Set-Content -Path $modulePath -Value $moduleContent
+    Set-Content -Path $modulePath -Value $moduleContent -Force
 
     Write-Host "`n✨ Installation complete!"
     Write-Host "To start using Cryptex, run:"
