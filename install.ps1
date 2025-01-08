@@ -1,47 +1,46 @@
 # Cryptex Installation Script
+$ErrorActionPreference = "Stop"
+
 Write-Host "🧙‍♂️ Summoning Cryptex..."
 
-# Check for Node.js
-try {
-    $nodeVersion = node --version
-    Write-Host "✓ Node.js found: $nodeVersion"
-} catch {
-    Write-Host "❌ Node.js is required but not installed!"
-    Write-Host "Please install Node.js from https://nodejs.org/"
-    exit 1
+# Check for required commands
+function Test-Command($cmd) {
+    if (!(Get-Command $cmd -ErrorAction SilentlyContinue)) {
+        Write-Host "❌ Error: '$cmd' not found. Please install it first."
+        Exit 1
+    }
 }
 
-# Create temporary directory
-$tempDir = Join-Path $env:TEMP "cryptex-install"
-New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
+Test-Command "git"
+Test-Command "node"
+Test-Command "npm"
 
-# Download and extract repository
-Write-Host "📦 Downloading Cryptex..."
-$repo = "hlsitechio/cryptex"
-$branch = "main"
-$url = "https://github.com/$repo/archive/refs/heads/$branch.zip"
-$zipPath = Join-Path $tempDir "cryptex.zip"
-Invoke-WebRequest -Uri $url -OutFile $zipPath
+# Set npm prefix to user directory to avoid permission issues
+$npmPrefix = Join-Path $env:USERPROFILE ".npm-packages"
+Write-Host "Setting npm prefix to: $npmPrefix"
+npm config set prefix $npmPrefix
 
-# Extract
-Write-Host "📂 Extracting files..."
-Expand-Archive -Path $zipPath -DestinationPath $tempDir -Force
-$extractedDir = Join-Path $tempDir "cryptex-$branch"
-
-# Install globally
-Write-Host "🔮 Installing Cryptex..."
-Set-Location $extractedDir
-npm install
-npm link cryptex-cli
-
-# Create .env if it doesn't exist
-if (-not (Test-Path .env)) {
-    "CRYPTEX_GOOGLE_AI_KEY=your_sacred_key_of_power" | Out-File -FilePath .env -Encoding UTF8
-    Write-Host "📜 Created .env file"
+# Add npm bin folder to the current PATH
+$npmBin = Join-Path $npmPrefix "bin"
+if ($env:Path -notmatch [regex]::Escape($npmBin)) {
+    Write-Host "Adding $npmBin to PATH for this session..."
+    $env:PATH = "$npmBin;$env:PATH"
 }
 
-# Cleanup
-Set-Location $env:USERPROFILE
-Remove-Item -Path $tempDir -Recurse -Force
+# Clone and install
+$installDir = Join-Path $env:USERPROFILE ".cryptex"
+Write-Host "Installing to: $installDir"
+Remove-Item -Recurse -Force $installDir -ErrorAction SilentlyContinue
+git clone https://github.com/hlsitechio/cryptexcli1.git $installDir
 
-Write-Host "✨ Installation complete! Try 'cryptex interact' to begin your magical journey!"
+# Install dependencies and create global link
+Set-Location (Join-Path $installDir "cryptex-cli")
+Write-Host "Installing dependencies..."
+npm install --no-save
+
+# Create global link
+Write-Host "Creating global link..."
+npm link
+
+Write-Host "`n✨ Installation complete! Try 'cryptex interact' to begin your magical journey."
+Write-Host "Note: If 'cryptex' is not recognized in a new terminal, you may need to restart your terminal."
