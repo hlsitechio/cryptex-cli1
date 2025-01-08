@@ -7,26 +7,27 @@ $VerbosePreference = "Continue"
 $ProgressPreference = 'SilentlyContinue'  # Speeds up downloads significantly
 
 function Get-ModuleInstallPath {
-    $paths = @(
-        # Check OneDrive Documents first
-        [System.IO.Path]::Combine($env:USERPROFILE, "OneDrive", "Documents", "WindowsPowerShell", "Modules"),
-        # Then regular Documents
-        [System.IO.Path]::Combine($env:USERPROFILE, "Documents", "WindowsPowerShell", "Modules"),
-        # Finally, check system-wide location
-        [System.IO.Path]::Combine($env:ProgramFiles, "WindowsPowerShell", "Modules")
-    )
-
+    # Get the first valid path from PSModulePath
+    $paths = $env:PSModulePath -split ';' | Where-Object { $_ -like "*WindowsPowerShell\Modules" }
+    
     foreach ($path in $paths) {
-        if (Test-Path ([System.IO.Path]::GetDirectoryName($path))) {
+        if (Test-Path (Split-Path $path)) {
             Write-Verbose "Found valid module path: $path"
             return $path
         }
     }
 
-    # Default to OneDrive path and create if necessary
-    $defaultPath = $paths[0]
-    Write-Verbose "Using default module path: $defaultPath"
-    return $defaultPath
+    # If no existing paths work, create in OneDrive if available
+    $oneDrivePath = [System.IO.Path]::Combine($env:USERPROFILE, "OneDrive", "Documents", "WindowsPowerShell", "Modules")
+    $documentsPath = [System.IO.Path]::Combine($env:USERPROFILE, "Documents", "WindowsPowerShell", "Modules")
+    
+    if (Test-Path ([System.IO.Path]::Combine($env:USERPROFILE, "OneDrive"))) {
+        Write-Verbose "Using OneDrive module path: $oneDrivePath"
+        return $oneDrivePath
+    }
+    
+    Write-Verbose "Using Documents module path: $documentsPath"
+    return $documentsPath
 }
 
 $modulesRoot = Get-ModuleInstallPath
