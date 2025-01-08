@@ -6,60 +6,46 @@ $ErrorActionPreference = "Stop"
 $VerbosePreference = "Continue"
 $ProgressPreference = 'SilentlyContinue'  # Speeds up downloads significantly
 
+function Get-ModuleInstallPath {
+    $paths = @(
+        # Check OneDrive Documents first
+        [System.IO.Path]::Combine($env:USERPROFILE, "OneDrive", "Documents", "WindowsPowerShell", "Modules"),
+        # Then regular Documents
+        [System.IO.Path]::Combine($env:USERPROFILE, "Documents", "WindowsPowerShell", "Modules"),
+        # Finally, check system-wide location
+        [System.IO.Path]::Combine($env:ProgramFiles, "WindowsPowerShell", "Modules")
+    )
+
+    foreach ($path in $paths) {
+        if (Test-Path ([System.IO.Path]::GetDirectoryName($path))) {
+            Write-Verbose "Found valid module path: $path"
+            return $path
+        }
+    }
+
+    # Default to OneDrive path and create if necessary
+    $defaultPath = $paths[0]
+    Write-Verbose "Using default module path: $defaultPath"
+    return $defaultPath
+}
+
+$modulesRoot = Get-ModuleInstallPath
+$modulePath = Join-Path $modulesRoot "Cryptex"
+
 Write-Host "🧙‍♂️ Summoning Cryptex..."
+Write-Verbose "Installing to: $modulePath"
 
-# Set installation directory in PowerShell modules path
-$modulesPath = $null
-
-# Try different possible locations for PowerShell modules
-$possiblePaths = @(
-    # User profile Documents
-    (Join-Path $env:USERPROFILE "Documents"),
-    # Standard Documents folder
-    [Environment]::GetFolderPath('MyDocuments'),
-    # Direct user profile as fallback
-    $env:USERPROFILE
-)
-
-Write-Verbose "Searching for valid installation path..."
-foreach ($basePath in $possiblePaths) {
-    Write-Verbose "Checking path: $basePath"
-    if (Test-Path $basePath) {
-        Write-Verbose "Found valid base path: $basePath"
-        $modulesPath = Join-Path $basePath "WindowsPowerShell\Modules"
-        break
-    }
+# Create the modules directory if it doesn't exist
+if (-not (Test-Path $modulesRoot)) {
+    Write-Verbose "Creating module directory: $modulesRoot"
+    New-Item -ItemType Directory -Path $modulesRoot -Force | Out-Null
 }
 
-if (-not $modulesPath) {
-    Write-Verbose "No existing paths found, defaulting to user profile"
-    $modulesPath = Join-Path $env:USERPROFILE "Documents\WindowsPowerShell\Modules"
-}
-
-$installDir = Join-Path $modulesPath "Cryptex"
-
-Write-Host "Installing to: $installDir"
-
-# Create directories if they don't exist
-Write-Verbose "Creating module directory: $modulesPath"
-try {
-    if (-not (Test-Path $modulesPath)) {
-        New-Item -ItemType Directory -Force -Path $modulesPath | Out-Null
-        Write-Verbose "Created modules directory successfully"
-    }
-
-    Write-Verbose "Removing existing Cryptex installation if present"
-    if (Test-Path $installDir) {
-        Remove-Item -Path $installDir -Recurse -Force
-        Write-Verbose "Removed existing installation"
-    }
-
-    Write-Verbose "Creating Cryptex installation directory"
-    New-Item -ItemType Directory -Force -Path $installDir | Out-Null
-    Write-Verbose "Created installation directory successfully"
-} catch {
-    Write-Error "Failed to create directories: $_"
-    Exit 1
+# Remove existing installation if present
+if (Test-Path $modulePath) {
+    Write-Verbose "Removing existing Cryptex installation"
+    Remove-Item -Path $modulePath -Recurse -Force
+    Write-Verbose "Removed existing installation"
 }
 
 # Create temp directory for download
@@ -89,11 +75,11 @@ try {
     
     # Copy files
     $sourceDir = Join-Path $tempDir "cryptexcli1-main"
-    Write-Verbose "Copying files from: $sourceDir to: $installDir"
+    Write-Verbose "Copying files from: $sourceDir to: $modulePath"
 
     # Create module files directly
-    $manifestPath = Join-Path $installDir "Cryptex.psd1"
-    $modulePath = Join-Path $installDir "Cryptex.psm1"
+    $manifestPath = Join-Path $modulePath "Cryptex.psd1"
+    $modulePath = Join-Path $modulePath "Cryptex.psm1"
 
     Write-Verbose "Creating module manifest: $manifestPath"
 
