@@ -7,33 +7,52 @@ $VerbosePreference = "Continue"
 $ProgressPreference = 'SilentlyContinue'  # Speeds up downloads significantly
 
 function Get-ModuleInstallPath {
-    # Get the first valid path from PSModulePath
-    $paths = $env:PSModulePath -split ';' | Where-Object { $_ -like "*WindowsPowerShell\Modules" }
+    Write-Verbose "Checking PowerShell module paths..."
     
-    foreach ($path in $paths) {
-        if (Test-Path (Split-Path $path)) {
-            Write-Verbose "Found valid module path: $path"
-            return $path
-        }
-    }
+    # Get PowerShell module paths
+    $modulePaths = $env:PSModulePath -split ';'
+    Write-Verbose "Available module paths:"
+    $modulePaths | ForEach-Object { Write-Verbose "  $_" }
 
-    # If no existing paths work, create in OneDrive if available
-    $oneDrivePath = [System.IO.Path]::Combine($env:USERPROFILE, "OneDrive", "Documents", "WindowsPowerShell", "Modules")
-    $documentsPath = [System.IO.Path]::Combine($env:USERPROFILE, "Documents", "WindowsPowerShell", "Modules")
-    
-    if (Test-Path ([System.IO.Path]::Combine($env:USERPROFILE, "OneDrive"))) {
+    # First try OneDrive path
+    $oneDrivePath = Join-Path $env:USERPROFILE "OneDrive\Documents\WindowsPowerShell\Modules"
+    if (Test-Path (Split-Path $oneDrivePath)) {
         Write-Verbose "Using OneDrive module path: $oneDrivePath"
         return $oneDrivePath
     }
-    
-    Write-Verbose "Using Documents module path: $documentsPath"
+
+    # Then try user Documents path
+    $documentsPath = Join-Path $env:USERPROFILE "Documents\WindowsPowerShell\Modules"
+    if (Test-Path (Split-Path $documentsPath)) {
+        Write-Verbose "Using Documents module path: $documentsPath"
+        return $documentsPath
+    }
+
+    # Finally try system-wide path
+    $systemPath = "$env:ProgramFiles\WindowsPowerShell\Modules"
+    if (Test-Path $systemPath) {
+        Write-Verbose "Using system module path: $systemPath"
+        return $systemPath
+    }
+
+    # If no paths exist, create in OneDrive if available
+    if (Test-Path (Join-Path $env:USERPROFILE "OneDrive")) {
+        Write-Verbose "Creating OneDrive module path: $oneDrivePath"
+        New-Item -ItemType Directory -Force -Path (Split-Path $oneDrivePath) | Out-Null
+        return $oneDrivePath
+    }
+
+    # Default to Documents path
+    Write-Verbose "Creating Documents module path: $documentsPath"
+    New-Item -ItemType Directory -Force -Path (Split-Path $documentsPath) | Out-Null
     return $documentsPath
 }
 
+Write-Host "🧙‍♂️ Summoning Cryptex..."
+
+# Get module installation path
 $modulesRoot = Get-ModuleInstallPath
 $modulePath = Join-Path $modulesRoot "Cryptex"
-
-Write-Host "🧙‍♂️ Summoning Cryptex..."
 Write-Verbose "Installing to: $modulePath"
 
 # Create the modules directory if it doesn't exist
